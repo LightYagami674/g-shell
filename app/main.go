@@ -45,7 +45,17 @@ var commands = map[string]func(input []string){
 		fmt.Println(path)
 	},
 	"cd": func(input []string) {
-		err := os.Chdir(input[0])
+		path := input[0]
+		if input[0] == "~" {
+			home, err := os.UserHomeDir()
+			if err != nil {
+				fmt.Println("error:", err)
+				return
+			}
+			path = home
+		}
+
+		err := os.Chdir(path)
 		if err != nil {
 			fmt.Println("cd: " + input[0] + ": No such file or directory")
 		}
