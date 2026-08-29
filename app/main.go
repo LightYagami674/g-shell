@@ -35,6 +35,22 @@ var commands = map[string]func(input []string){
 	},
 }
 
+func checkAndRunExecutable(cmd string, args []string) bool {
+	path, err := exec.LookPath(cmd)
+	if err != nil {
+		return false
+	}
+
+	cexec := exec.Command(path, args...)
+	cexec.Stdin = os.Stdin
+	cexec.Stdout = os.Stdout
+	cexec.Stderr = os.Stderr
+
+	cexec.Run()
+
+	return true
+}
+
 func main() {
 	scanner := bufio.NewScanner(os.Stdin)
 	for {
@@ -52,7 +68,11 @@ func main() {
 
 		handler, exists := commands[cmd]
 		if !exists {
-			fmt.Println(cmd + ": command not found")
+			// check if it's an executable
+			res := checkAndRunExecutable(cmd, input[1:])
+			if !res {
+				fmt.Println(cmd + ": command not found")
+			}
 		} else {
 			handler(input[1:])
 		}
