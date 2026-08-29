@@ -13,6 +13,7 @@ var commandList = map[string]struct{}{
 	"exit": {},
 	"type": {},
 	"pwd":  {},
+	"cd":   {},
 }
 
 var commands = map[string]func(input []string){
@@ -42,6 +43,12 @@ var commands = map[string]func(input []string){
 		}
 
 		fmt.Println(path)
+	},
+	"cd": func(input []string) {
+		err := os.Chdir(input[0])
+		if err != nil {
+			fmt.Println("cd: " + input[0] + ": No such file or directory")
+		}
 	},
 }
 
