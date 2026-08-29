@@ -12,7 +12,7 @@ func main() {
 		fmt.Print("$ ")
 		fmt.Scan(&cmd)
 
-		fmt.Println(cmd, ": command not found")
+		fmt.Println(cmd + ": command not found")
 
 	}
 }
