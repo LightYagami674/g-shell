@@ -12,6 +12,7 @@ var commandList = map[string]struct{}{
 	"echo": {},
 	"exit": {},
 	"type": {},
+	"pwd":  {},
 }
 
 var commands = map[string]func(input []string){
@@ -32,6 +33,15 @@ var commands = map[string]func(input []string){
 		} else {
 			fmt.Println(input[0] + " is a shell builtin")
 		}
+	},
+	"pwd": func(input []string) {
+		path, err := os.Getwd()
+		if err != nil {
+			fmt.Println("error:", err)
+			return
+		}
+
+		fmt.Println(path)
 	},
 }
 
