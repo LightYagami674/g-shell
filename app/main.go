@@ -36,12 +36,12 @@ var commands = map[string]func(input []string){
 }
 
 func checkAndRunExecutable(cmd string, args []string) bool {
-	path, err := exec.LookPath(cmd)
+	_, err := exec.LookPath(cmd)
 	if err != nil {
 		return false
 	}
 
-	cexec := exec.Command(path, args...)
+	cexec := exec.Command(cmd, args...)
 	cexec.Stdin = os.Stdin
 	cexec.Stdout = os.Stdout
 	cexec.Stderr = os.Stderr
