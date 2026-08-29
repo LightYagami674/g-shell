@@ -1,22 +1,29 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
+	"os"
+	"strings"
 )
 
 func main() {
-	var cmd string
-
+	scanner := bufio.NewScanner(os.Stdin)
 	for {
 
 		fmt.Print("$ ")
-		fmt.Scan(&cmd)
+		scanner.Scan()
+
+		input := strings.Fields(scanner.Text())
+
+		cmd := input[0]
 
 		if cmd == "exit" {
 			break
+		} else if cmd == "echo" {
+			fmt.Println(strings.Join(input[1:], " "))
+		} else {
+			fmt.Println(cmd + ": command not found")
 		}
-
-		fmt.Println(cmd + ": command not found")
-
 	}
 }
