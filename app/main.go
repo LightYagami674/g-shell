@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"os/exec"
 	"strings"
 )
 
@@ -20,7 +21,14 @@ var commands = map[string]func(input []string){
 	"type": func(input []string) {
 		_, exists := commandList[input[0]]
 		if !exists {
-			fmt.Println(input[0] + ": not found")
+			// now check for executables
+			path, err := exec.LookPath(input[0])
+			if err != nil {
+				fmt.Println(input[0] + ": not found")
+				return
+			}
+
+			fmt.Println(input[0] + " is " + path)
 		} else {
 			fmt.Println(input[0] + " is a shell builtin")
 		}
