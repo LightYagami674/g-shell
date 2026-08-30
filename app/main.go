@@ -14,6 +14,7 @@ var commandList = map[string]struct{}{
 	"type": {},
 	"pwd":  {},
 	"cd":   {},
+	"jobs": {},
 }
 
 var commands = map[string]func(input []string){
@@ -60,6 +61,7 @@ var commands = map[string]func(input []string){
 			fmt.Println("cd: " + input[0] + ": No such file or directory")
 		}
 	},
+	"jobs": func(input []string) {},
 }
 
 func checkAndRunExecutable(cmd string, args []string) bool {
