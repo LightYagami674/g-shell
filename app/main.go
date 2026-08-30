@@ -70,12 +70,28 @@ func checkAndRunExecutable(cmd string, args []string) bool {
 		return false
 	}
 
+	isBackgroundJob := args[len(args)-1] == "&"
+	if isBackgroundJob {
+		args = args[:len(args)-1]
+	}
+
 	cexec := exec.Command(cmd, args...)
 	cexec.Stdin = os.Stdin
 	cexec.Stdout = os.Stdout
 	cexec.Stderr = os.Stderr
 
-	cexec.Run()
+	if isBackgroundJob {
+		err := cexec.Start()
+
+		if err != nil {
+			fmt.Println("error:", err)
+		} else {
+			fmt.Println("[1]", cexec.Process.Pid)
+		}
+
+	} else {
+		cexec.Run()
+	}
 
 	return true
 }
