@@ -8,6 +8,14 @@ import (
 	"strings"
 )
 
+type BackgroundJob struct {
+	pid     int
+	index   int
+	command string
+}
+
+var backgroundJobs = make([]BackgroundJob, 0)
+
 var commandList = map[string]struct{}{
 	"echo": {},
 	"exit": {},
@@ -61,7 +69,14 @@ var commands = map[string]func(input []string){
 			fmt.Println("cd: " + input[0] + ": No such file or directory")
 		}
 	},
-	"jobs": func(input []string) {},
+	"jobs": func(input []string) {
+		if len(backgroundJobs) == 0 {
+			return
+		}
+
+		latestJob := backgroundJobs[len(backgroundJobs)-1]
+		fmt.Printf("[%d]+  %-24s%s\n", latestJob.index, "Running", latestJob.command)
+	},
 }
 
 func checkAndRunExecutable(cmd string, args []string) bool {
@@ -86,11 +101,31 @@ func checkAndRunExecutable(cmd string, args []string) bool {
 		if err != nil {
 			fmt.Println("error:", err)
 		} else {
-			fmt.Println("[1]", cexec.Process.Pid)
+			pid := cexec.Process.Pid
+
+			newIndex := 1
+			if len(backgroundJobs) > 0 {
+				newIndex = backgroundJobs[len(backgroundJobs)-1].index + 1
+			}
+
+			inputCommand := cmd + " " + strings.Join(args, " ")
+
+			newBackgroundJob := BackgroundJob{
+				index:   newIndex,
+				pid:     pid,
+				command: inputCommand,
+			}
+
+			backgroundJobs = append(backgroundJobs, newBackgroundJob)
+			fmt.Printf("[%d] %d\n", newIndex, pid)
+
 		}
 
 	} else {
-		cexec.Run()
+		err := cexec.Run()
+		if err != nil {
+			fmt.Println("error: ", err)
+		}
 	}
 
 	return true
