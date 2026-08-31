@@ -14,7 +14,11 @@ type BackgroundJob struct {
 	command string
 }
 
-var backgroundJobs = make([]BackgroundJob, 0)
+var (
+	backgroundJobs  = make([]BackgroundJob, 0)
+	latestJob       = -1
+	secondLatestJob = -1
+)
 
 var commandList = map[string]struct{}{
 	"echo": {},
@@ -74,8 +78,18 @@ var commands = map[string]func(input []string){
 			return
 		}
 
-		latestJob := backgroundJobs[len(backgroundJobs)-1]
-		fmt.Printf("[%d]+  %-24s%s\n", latestJob.index, "Running", latestJob.command)
+		for _, job := range backgroundJobs {
+			marker := " "
+			switch job.index {
+			case latestJob:
+				marker = "+"
+			case secondLatestJob:
+				marker = "-"
+			}
+
+			fmt.Printf("[%d]%s  %-24s%s\n", job.index, marker, "Running", job.command)
+
+		}
 	},
 }
 
@@ -115,6 +129,11 @@ func checkAndRunExecutable(cmd string, args []string) bool {
 				pid:     pid,
 				command: inputCommand,
 			}
+
+			if latestJob != -1 {
+				secondLatestJob = latestJob
+			}
+			latestJob = newIndex
 
 			backgroundJobs = append(backgroundJobs, newBackgroundJob)
 			fmt.Printf("[%d] %d\n", newIndex, pid)
