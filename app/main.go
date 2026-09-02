@@ -21,6 +21,49 @@ var (
 	secondLatestJob = -1
 )
 
+func handleBackgroundJobs(printDoneJobs bool) {
+	updatedBackgroundJobs := make([]BackgroundJob, 0)
+	latestRunningJob := -1
+	secondLatestRunningJob := -1
+
+	for _, job := range backgroundJobs {
+		marker := " "
+		switch job.index {
+		case latestJob:
+			marker = "+"
+		case secondLatestJob:
+			marker = "-"
+		}
+
+		var status syscall.WaitStatus
+		wpid, err := syscall.Wait4(job.pid, &status, syscall.WNOHANG, nil)
+
+		deleteJob := false
+		jobStatus := "Running"
+
+		if err != nil || wpid == job.pid {
+			jobStatus = "Done"
+			deleteJob = true
+		}
+		if !printDoneJobs {
+			fmt.Printf("[%d]%s  %-24s%s\n", job.index, marker, jobStatus, job.command)
+		} else if jobStatus == "Done" {
+			fmt.Printf("[%d]%s  %-24s%s\n", job.index, marker, jobStatus, job.command)
+		}
+
+		if !deleteJob {
+			updatedBackgroundJobs = append(updatedBackgroundJobs, job)
+
+			secondLatestRunningJob = latestRunningJob
+			latestRunningJob = job.index
+		}
+	}
+
+	backgroundJobs = updatedBackgroundJobs
+	latestJob = latestRunningJob
+	secondLatestJob = secondLatestRunningJob
+}
+
 var commandList = map[string]struct{}{
 	"echo": {},
 	"exit": {},
@@ -75,46 +118,7 @@ var commands = map[string]func(input []string){
 		}
 	},
 	"jobs": func(input []string) {
-		if len(backgroundJobs) == 0 {
-			return
-		}
-
-		updatedBackgroundJobs := make([]BackgroundJob, 0)
-		latestRunningJob := -1
-		secondLatestRunningJob := -1
-
-		for _, job := range backgroundJobs {
-			marker := " "
-			switch job.index {
-			case latestJob:
-				marker = "+"
-			case secondLatestJob:
-				marker = "-"
-			}
-
-			var status syscall.WaitStatus
-			wpid, err := syscall.Wait4(job.pid, &status, syscall.WNOHANG, nil)
-
-			deleteJob := false
-			jobStatus := "Running"
-
-			if err != nil || wpid == job.pid {
-				jobStatus = "Done"
-				deleteJob = true
-			}
-			fmt.Printf("[%d]%s  %-24s%s\n", job.index, marker, jobStatus, job.command)
-
-			if !deleteJob {
-				updatedBackgroundJobs = append(updatedBackgroundJobs, job)
-
-				secondLatestRunningJob = latestRunningJob
-				latestRunningJob = job.index
-			}
-		}
-
-		backgroundJobs = updatedBackgroundJobs
-		latestJob = latestRunningJob
-		secondLatestJob = secondLatestRunningJob
+		handleBackgroundJobs(false)
 	},
 }
 
@@ -200,5 +204,6 @@ func main() {
 		} else {
 			handler(input[1:])
 		}
+		handleBackgroundJobs(true)
 	}
 }
