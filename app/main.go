@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"syscall"
 )
 
 type BackgroundJob struct {
@@ -78,6 +79,8 @@ var commands = map[string]func(input []string){
 			return
 		}
 
+		updatedBackgroundJobs := make([]BackgroundJob, 0)
+
 		for _, job := range backgroundJobs {
 			marker := " "
 			switch job.index {
@@ -87,9 +90,24 @@ var commands = map[string]func(input []string){
 				marker = "-"
 			}
 
-			fmt.Printf("[%d]%s  %-24s%s\n", job.index, marker, "Running", job.command)
+			var status syscall.WaitStatus
+			wpid, err := syscall.Wait4(job.pid, &status, syscall.WNOHANG, nil)
 
+			deleteJob := false
+			jobStatus := "Running"
+
+			if err != nil || wpid == job.pid {
+				jobStatus = "Done"
+				deleteJob = true
+			}
+			fmt.Printf("[%d]%s  %-24s%s\n", job.index, marker, jobStatus, job.command)
+
+			if !deleteJob {
+				updatedBackgroundJobs = append(updatedBackgroundJobs, job)
+			}
 		}
+
+		backgroundJobs = updatedBackgroundJobs
 	},
 }
 
