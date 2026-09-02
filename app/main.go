@@ -80,6 +80,8 @@ var commands = map[string]func(input []string){
 		}
 
 		updatedBackgroundJobs := make([]BackgroundJob, 0)
+		latestRunningJob := -1
+		secondLatestRunningJob := -1
 
 		for _, job := range backgroundJobs {
 			marker := " "
@@ -104,10 +106,15 @@ var commands = map[string]func(input []string){
 
 			if !deleteJob {
 				updatedBackgroundJobs = append(updatedBackgroundJobs, job)
+
+				secondLatestRunningJob = latestRunningJob
+				latestRunningJob = job.index
 			}
 		}
 
 		backgroundJobs = updatedBackgroundJobs
+		latestJob = latestRunningJob
+		secondLatestJob = secondLatestRunningJob
 	},
 }
 
