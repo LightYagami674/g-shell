@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"slices"
 	"strings"
 	"syscall"
 )
@@ -13,6 +14,11 @@ type BackgroundJob struct {
 	pid     int
 	index   int
 	command string
+}
+
+type CommandsWithInputs struct {
+	command string
+	args    []string
 }
 
 var (
@@ -179,6 +185,57 @@ func checkAndRunExecutable(cmd string, args []string) bool {
 	return true
 }
 
+func isPipeCommand(input []string) bool {
+	return slices.Contains(input, "|")
+}
+
+func checkAndRunPipeExecutable(commandsWithInputs []CommandsWithInputs) bool {
+	execCommands := make([]*exec.Cmd, 0)
+	// validate all commands with look path
+	for _, commandsWithInput := range commandsWithInputs {
+		_, err := exec.LookPath(commandsWithInput.command)
+		if err != nil {
+			return false
+		}
+
+		tempExecCommand := exec.Command(commandsWithInput.command, commandsWithInput.args...)
+		execCommands = append(execCommands, tempExecCommand)
+	}
+	// chain cmds
+	for idx, execCommand := range execCommands {
+		if idx == 0 {
+			execCommand.Stdin = os.Stdin
+		} else {
+			prevPipe, err := execCommands[idx-1].StdoutPipe()
+			if err != nil {
+				fmt.Println("error:", err)
+				return false
+			}
+			execCommand.Stdin = prevPipe
+		}
+
+		if idx == len(execCommands)-1 {
+			execCommand.Stdout = os.Stdout
+		}
+
+		execCommand.Stderr = os.Stderr
+	}
+	// run all commands
+	for _, execCommand := range execCommands {
+		if err := execCommand.Start(); err != nil {
+			fmt.Println("error:", err)
+			return false
+		}
+	}
+	lastCommand := execCommands[len(execCommands)-1]
+	if err := lastCommand.Wait(); err != nil {
+		fmt.Println("error:", err)
+		return false
+	}
+
+	return true
+}
+
 func main() {
 	scanner := bufio.NewScanner(os.Stdin)
 	for {
@@ -186,24 +243,45 @@ func main() {
 		fmt.Print("$ ")
 		scanner.Scan()
 
-		input := strings.Fields(scanner.Text())
-
+		scannedText := scanner.Text()
+		input := strings.Fields(scannedText)
 		cmd := input[0]
 
 		if cmd == "exit" {
 			break
 		}
 
-		handler, exists := commands[cmd]
-		if !exists {
-			// check if it's an executable
-			res := checkAndRunExecutable(cmd, input[1:])
-			if !res {
-				fmt.Println(cmd + ": command not found")
+		if isPipeCommand(input) {
+			commandArr := strings.Split(scannedText, "|")
+			commandsWithInputs := make([]CommandsWithInputs, 0)
+
+			for _, text := range commandArr {
+				cmd := strings.Fields(text)
+
+				tmpInput := CommandsWithInputs{
+					command: cmd[0],
+					args:    cmd[1:],
+				}
+
+				commandsWithInputs = append(commandsWithInputs, tmpInput)
 			}
+
+			checkAndRunPipeExecutable(commandsWithInputs)
+
 		} else {
-			handler(input[1:])
+			handler, exists := commands[cmd]
+			if !exists {
+				// check if it's an executable
+				res := checkAndRunExecutable(cmd, input[1:])
+				if !res {
+					fmt.Println(cmd + ": command not found")
+				}
+			} else {
+				handler(input[1:])
+			}
+
 		}
+
 		handleBackgroundJobs(true)
 	}
 }
