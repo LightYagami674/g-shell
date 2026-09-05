@@ -3,10 +3,12 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"slices"
 	"strings"
+	"sync"
 	"syscall"
 )
 
@@ -15,6 +17,8 @@ type BackgroundJob struct {
 	index   int
 	command string
 }
+
+type BuiltinFn func(input []string, stdin io.Reader, stdout io.Writer)
 
 type CommandsWithInputs struct {
 	command string
@@ -27,7 +31,7 @@ var (
 	secondLatestJob = -1
 )
 
-func handleBackgroundJobs(printDoneJobs bool) {
+func handleBackgroundJobs(printDoneJobs bool, stdin io.Reader, stdout io.Writer) {
 	updatedBackgroundJobs := make([]BackgroundJob, 0)
 	latestRunningJob := -1
 	secondLatestRunningJob := -1
@@ -52,9 +56,9 @@ func handleBackgroundJobs(printDoneJobs bool) {
 			deleteJob = true
 		}
 		if !printDoneJobs {
-			fmt.Printf("[%d]%s  %-24s%s\n", job.index, marker, jobStatus, job.command)
+			fmt.Fprintf(stdout, "[%d]%s  %-24s%s\n", job.index, marker, jobStatus, job.command)
 		} else if jobStatus == "Done" {
-			fmt.Printf("[%d]%s  %-24s%s\n", job.index, marker, jobStatus, job.command)
+			fmt.Fprintf(stdout, "[%d]%s  %-24s%s\n", job.index, marker, jobStatus, job.command)
 		}
 
 		if !deleteJob {
@@ -79,40 +83,40 @@ var commandList = map[string]struct{}{
 	"jobs": {},
 }
 
-var commands = map[string]func(input []string){
-	"echo": func(input []string) {
-		fmt.Println(strings.Join(input, " "))
+var commands = map[string]BuiltinFn{
+	"echo": func(input []string, stdin io.Reader, stdout io.Writer) {
+		fmt.Fprintln(stdout, strings.Join(input, " "))
 	},
-	"type": func(input []string) {
+	"type": func(input []string, stdin io.Reader, stdout io.Writer) {
 		_, exists := commandList[input[0]]
 		if !exists {
 			// now check for executables
 			path, err := exec.LookPath(input[0])
 			if err != nil {
-				fmt.Println(input[0] + ": not found")
+				fmt.Fprintln(stdout, input[0]+": not found")
 				return
 			}
 
-			fmt.Println(input[0] + " is " + path)
+			fmt.Fprintln(stdout, input[0]+" is "+path)
 		} else {
-			fmt.Println(input[0] + " is a shell builtin")
+			fmt.Fprintln(stdout, input[0]+" is a shell builtin")
 		}
 	},
-	"pwd": func(input []string) {
+	"pwd": func(input []string, stdin io.Reader, stdout io.Writer) {
 		path, err := os.Getwd()
 		if err != nil {
-			fmt.Println("error:", err)
+			fmt.Fprintln(stdout, "error:", err)
 			return
 		}
 
-		fmt.Println(path)
+		fmt.Fprintln(stdout, path)
 	},
-	"cd": func(input []string) {
+	"cd": func(input []string, stdin io.Reader, stdout io.Writer) {
 		path := input[0]
 		if input[0] == "~" {
 			home, err := os.UserHomeDir()
 			if err != nil {
-				fmt.Println("error:", err)
+				fmt.Fprintln(stdout, "error:", err)
 				return
 			}
 			path = home
@@ -120,11 +124,11 @@ var commands = map[string]func(input []string){
 
 		err := os.Chdir(path)
 		if err != nil {
-			fmt.Println("cd: " + input[0] + ": No such file or directory")
+			fmt.Fprintln(stdout, "cd: "+input[0]+": No such file or directory")
 		}
 	},
-	"jobs": func(input []string) {
-		handleBackgroundJobs(false)
+	"jobs": func(input []string, stdin io.Reader, stdout io.Writer) {
+		handleBackgroundJobs(false, stdin, stdout)
 	},
 }
 
@@ -134,7 +138,7 @@ func checkAndRunExecutable(cmd string, args []string) bool {
 		return false
 	}
 
-	isBackgroundJob := args[len(args)-1] == "&"
+	isBackgroundJob := len(args) > 0 && args[len(args)-1] == "&"
 	if isBackgroundJob {
 		args = args[:len(args)-1]
 	}
@@ -189,51 +193,82 @@ func isPipeCommand(input []string) bool {
 	return slices.Contains(input, "|")
 }
 
-func checkAndRunPipeExecutable(commandsWithInputs []CommandsWithInputs) bool {
-	execCommands := make([]*exec.Cmd, 0)
+type PipelineStage struct {
+	IsBuiltin bool
+	BuiltinFn BuiltinFn
+	Args      []string
+	execCmd   *exec.Cmd
+}
+
+func checkAndRunPipeExecutable(commandsWithInputs []CommandsWithInputs) error {
+	pipeline := make([]PipelineStage, 0)
 	// validate all commands with look path
 	for _, commandsWithInput := range commandsWithInputs {
+		// check if it's a builtin command
+		if builtinFn, ok := commands[commandsWithInput.command]; ok {
+			pipeline = append(pipeline, PipelineStage{IsBuiltin: true, BuiltinFn: builtinFn, Args: commandsWithInput.args})
+			continue
+		}
 		_, err := exec.LookPath(commandsWithInput.command)
 		if err != nil {
-			return false
+			return err
 		}
 
 		tempExecCommand := exec.Command(commandsWithInput.command, commandsWithInput.args...)
-		execCommands = append(execCommands, tempExecCommand)
+		pipeline = append(pipeline, PipelineStage{
+			IsBuiltin: false,
+			execCmd:   tempExecCommand,
+		})
 	}
 	// chain cmds
-	for idx, execCommand := range execCommands {
-		if idx == 0 {
-			execCommand.Stdin = os.Stdin
+	var wg sync.WaitGroup
+	var prevReader io.Reader = os.Stdin
+
+	for i, stage := range pipeline {
+
+		var stdout io.Writer = io.Writer(os.Stdout)
+		var pr *io.PipeReader
+		var pw *io.PipeWriter
+
+		if i != len(pipeline)-1 {
+			pr, pw = io.Pipe()
+			stdout = pw
+		}
+
+		stdin := prevReader
+
+		if stage.IsBuiltin {
+			wg.Go(func() {
+				stage.BuiltinFn(stage.Args, stdin, stdout)
+				if pw != nil {
+					pw.Close()
+				}
+
+				if stdin != nil && stdin != os.Stdin {
+					io.Copy(io.Discard, stdin)
+				}
+			})
 		} else {
-			prevPipe, err := execCommands[idx-1].StdoutPipe()
-			if err != nil {
-				fmt.Println("error:", err)
-				return false
+			execCmd := stage.execCmd
+			execCmd.Stdin = stdin
+			execCmd.Stdout = stdout
+
+			if err := execCmd.Start(); err != nil {
+				return err
 			}
-			execCommand.Stdin = prevPipe
+
+			wg.Go(func() {
+				execCmd.Wait()
+				if pw != nil {
+					pw.Close()
+				}
+			})
 		}
 
-		if idx == len(execCommands)-1 {
-			execCommand.Stdout = os.Stdout
-		}
-
-		execCommand.Stderr = os.Stderr
+		prevReader = pr
 	}
-	// run all commands
-	for _, execCommand := range execCommands {
-		if err := execCommand.Start(); err != nil {
-			fmt.Println("error:", err)
-			return false
-		}
-	}
-	lastCommand := execCommands[len(execCommands)-1]
-	if err := lastCommand.Wait(); err != nil {
-		fmt.Println("error:", err)
-		return false
-	}
-
-	return true
+	wg.Wait()
+	return nil
 }
 
 func main() {
@@ -266,7 +301,10 @@ func main() {
 				commandsWithInputs = append(commandsWithInputs, tmpInput)
 			}
 
-			checkAndRunPipeExecutable(commandsWithInputs)
+			err := checkAndRunPipeExecutable(commandsWithInputs)
+			if err != nil {
+				fmt.Println("error:", err)
+			}
 
 		} else {
 			handler, exists := commands[cmd]
@@ -277,11 +315,11 @@ func main() {
 					fmt.Println(cmd + ": command not found")
 				}
 			} else {
-				handler(input[1:])
+				handler(input[1:], os.Stdin, os.Stdout)
 			}
 
 		}
 
-		handleBackgroundJobs(true)
+		handleBackgroundJobs(true, os.Stdin, os.Stdout)
 	}
 }
