@@ -330,10 +330,6 @@ func getModifiedInput(input string) []string {
 					curWord.WriteRune(c)
 					continue
 				}
-				if curWord.Len() > 0 {
-					res = append(res, curWord.String())
-					curWord.Reset()
-				}
 				doubleQuoteStart = true
 
 			case '\'':
