@@ -227,11 +227,13 @@ func checkAndRunPipeExecutable(commandsWithInputs []CommandsWithInputs) error {
 	for i, stage := range pipeline {
 
 		var stdout io.Writer = io.Writer(os.Stdout)
-		var pr *io.PipeReader
-		var pw *io.PipeWriter
-
+		var pr, pw *os.File
 		if i != len(pipeline)-1 {
-			pr, pw = io.Pipe()
+			var err error
+			pr, pw, err = os.Pipe()
+			if err != nil {
+				return err
+			}
 			stdout = pw
 		}
 
@@ -257,7 +259,10 @@ func checkAndRunPipeExecutable(commandsWithInputs []CommandsWithInputs) error {
 			if err := execCmd.Start(); err != nil {
 				return err
 			}
-
+			if pw != nil {
+				pw.Close() // parent's copy no longer needed once child has it
+			}
+			pw := pw
 			wg.Go(func() {
 				execCmd.Wait()
 				if pw != nil {
@@ -381,7 +386,7 @@ func main() {
 			commandsWithInputs := make([]CommandsWithInputs, 0)
 
 			for _, text := range commandArr {
-				cmd := strings.Fields(text)
+				cmd := getModifiedInput(text)
 
 				tmpInput := CommandsWithInputs{
 					command: cmd[0],
