@@ -252,6 +252,7 @@ func checkAndRunPipeExecutable(commandsWithInputs []CommandsWithInputs) error {
 			execCmd := stage.execCmd
 			execCmd.Stdin = stdin
 			execCmd.Stdout = stdout
+			execCmd.Stderr = os.Stderr
 
 			if err := execCmd.Start(); err != nil {
 				return err
