@@ -300,7 +300,9 @@ func getModifiedInput(input string) []string {
 			} else {
 				switch c {
 				case ' ':
-					res = append(res, curWord.String())
+					if curWord.Len() > 0 {
+						res = append(res, curWord.String())
+					}
 					curWord.Reset()
 
 				case '\'':
