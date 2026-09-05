@@ -272,64 +272,96 @@ func checkAndRunPipeExecutable(commandsWithInputs []CommandsWithInputs) error {
 }
 
 func getModifiedInput(input string) []string {
-	if strings.Contains(input, "'") {
-		res := make([]string, 0)
+	res := make([]string, 0)
 
-		var curWord strings.Builder
-		quoteStart := false
+	var curWord strings.Builder
+	quoteStart := false
+	doubleQuoteStart := false
 
-		for i, c := range input {
-			isLast := i == len(input)-1
+	for i, c := range input {
+		isLast := i == len(input)-1
 
-			if quoteStart {
-				switch c {
-				case ' ':
-					curWord.WriteRune(c)
+		if doubleQuoteStart {
+			switch c {
+			case '"':
+				if !isLast && (input[i-1] == '"' || input[i+1] == '"') {
+					continue
+				}
 
-				case '\'':
-					if !isLast && (input[i+1] == '\'' || input[i-1] == '\'') {
-						continue
-					}
-					quoteStart = false
+				doubleQuoteStart = false
+
+				if !isLast && input[i+1] != ' ' {
+					continue
+				}
+
+				if curWord.Len() > 0 {
 					res = append(res, curWord.String())
 					curWord.Reset()
-
-				default:
-					curWord.WriteRune(c)
 				}
-			} else {
-				switch c {
-				case ' ':
-					if curWord.Len() > 0 {
-						res = append(res, curWord.String())
-					}
+			default:
+				curWord.WriteRune(c)
+			}
+		} else if quoteStart {
+			switch c {
+			case ' ':
+				curWord.WriteRune(c)
+
+			case '\'':
+				if !isLast && (input[i+1] == '\'' || input[i-1] == '\'') {
+					continue
+				}
+				quoteStart = false
+				res = append(res, curWord.String())
+				curWord.Reset()
+
+			default:
+				curWord.WriteRune(c)
+			}
+		} else {
+			switch c {
+			case ' ':
+				if curWord.Len() > 0 {
+					res = append(res, curWord.String())
+				}
+				curWord.Reset()
+
+			case '"':
+				if quoteStart {
+					curWord.WriteRune(c)
+					continue
+				}
+				if curWord.Len() > 0 {
+					res = append(res, curWord.String())
 					curWord.Reset()
-
-				case '\'':
-					if !isLast && (input[i+1] == '\'' || input[i-1] == '\'') {
-						continue
-					}
-
-					if curWord.Len() > 0 {
-						res = append(res, curWord.String())
-						curWord.Reset()
-					}
-					quoteStart = true
-				default:
-					curWord.WriteRune(c)
 				}
+				doubleQuoteStart = true
+
+			case '\'':
+				if doubleQuoteStart {
+					curWord.WriteRune(c)
+					continue
+				}
+				if !isLast && (input[i+1] == '\'' || input[i-1] == '\'') {
+					continue
+				}
+
+				if curWord.Len() > 0 {
+					res = append(res, curWord.String())
+					curWord.Reset()
+				}
+				quoteStart = true
+			default:
+				curWord.WriteRune(c)
 			}
 		}
-
-		if curWord.Len() > 0 {
-			res = append(res, curWord.String())
-			curWord.Reset()
-		}
-
-		return res
 	}
 
-	return strings.Fields(input)
+	if curWord.Len() > 0 {
+		res = append(res, curWord.String())
+		curWord.Reset()
+	}
+
+	return res
 }
 
 func main() {
