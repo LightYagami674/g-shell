@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -277,7 +278,7 @@ func checkAndRunPipeExecutable(commandsWithInputs []CommandsWithInputs) error {
 	return nil
 }
 
-func getModifiedInput(input string) []string {
+func getModifiedInput(input string) ([]string, error) {
 	res := make([]string, 0)
 
 	var curWord strings.Builder
@@ -289,7 +290,7 @@ func getModifiedInput(input string) []string {
 	for i, c := range input {
 		isLast := i == len(input)-1
 
-		if doubleQuoteStart {
+		if doubleQuoteStart && !addNextChar {
 			switch c {
 			case '"':
 				if !isLast && (input[i-1] == '"' || input[i+1] == '"') {
@@ -306,10 +307,20 @@ func getModifiedInput(input string) []string {
 					res = append(res, curWord.String())
 					curWord.Reset()
 				}
+			case '\\':
+				if isLast {
+					return nil, errors.New("Invalid input, open double quotes without end")
+				}
+
+				if input[i+1] == '"' || input[i+1] == '\\' {
+					addNextChar = true
+				} else {
+					curWord.WriteRune(c)
+				}
 			default:
 				curWord.WriteRune(c)
 			}
-		} else if quoteStart {
+		} else if quoteStart && !addNextChar {
 			switch c {
 			case ' ':
 				curWord.WriteRune(c)
@@ -370,7 +381,7 @@ func getModifiedInput(input string) []string {
 		curWord.Reset()
 	}
 
-	return res
+	return res, nil
 }
 
 func main() {
@@ -381,7 +392,10 @@ func main() {
 		scanner.Scan()
 
 		scannedText := scanner.Text()
-		input := getModifiedInput(scannedText)
+		input, err := getModifiedInput(scannedText)
+		if err != nil {
+			fmt.Println("error:", err)
+		}
 		cmd := input[0]
 
 		if cmd == "exit" {
@@ -393,7 +407,10 @@ func main() {
 			commandsWithInputs := make([]CommandsWithInputs, 0)
 
 			for _, text := range commandArr {
-				cmd := getModifiedInput(text)
+				cmd, err := getModifiedInput(text)
+				if err != nil {
+					fmt.Println("error:", err)
+				}
 
 				tmpInput := CommandsWithInputs{
 					command: cmd[0],
