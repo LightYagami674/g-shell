@@ -284,6 +284,8 @@ func getModifiedInput(input string) []string {
 	quoteStart := false
 	doubleQuoteStart := false
 
+	addNextChar := false
+
 	for i, c := range input {
 		isLast := i == len(input)-1
 
@@ -323,6 +325,9 @@ func getModifiedInput(input string) []string {
 			default:
 				curWord.WriteRune(c)
 			}
+		} else if addNextChar {
+			curWord.WriteRune(c)
+			addNextChar = false
 		} else {
 			switch c {
 			case ' ':
@@ -352,6 +357,12 @@ func getModifiedInput(input string) []string {
 					curWord.Reset()
 				}
 				quoteStart = true
+			case '\\':
+				if isLast {
+					continue
+				}
+				addNextChar = true
+
 			default:
 				curWord.WriteRune(c)
 			}
