@@ -289,6 +289,7 @@ func getModifiedInput(input string) ([]string, error) {
 
 	for i, c := range input {
 		isLast := i == len(input)-1
+		isFirst := i == 0
 
 		if doubleQuoteStart && !addNextChar {
 			switch c {
@@ -359,7 +360,8 @@ func getModifiedInput(input string) ([]string, error) {
 					curWord.WriteRune(c)
 					continue
 				}
-				if !isLast && (input[i+1] == '\'' || input[i-1] == '\'') {
+				if (!isLast && input[i+1] == '\'') ||
+					(!isFirst && input[i-1] == '\'') {
 					continue
 				}
 
