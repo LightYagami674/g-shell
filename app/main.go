@@ -352,10 +352,6 @@ func getModifiedInput(input string) []string {
 					continue
 				}
 
-				if curWord.Len() > 0 {
-					res = append(res, curWord.String())
-					curWord.Reset()
-				}
 				quoteStart = true
 			case '\\':
 				if isLast {
