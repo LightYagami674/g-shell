@@ -383,7 +383,7 @@ func getModifiedInput(input string) ([]string, error) {
 	return res, nil
 }
 
-var pipeSlice = []string{">", "1>", "2>", ">>", "2>>"}
+var pipeSlice = []string{">", "1>", "2>", ">>", "1>>", "2>>"}
 
 func isRedirectCommand(input []string) bool {
 	inputLen := len(input)
@@ -423,7 +423,7 @@ func main() {
 			pipe := input[pipeIndex]
 
 			fileFlag := os.O_WRONLY | os.O_CREATE | os.O_TRUNC
-			if pipe == ">>" || pipe == "2>>" {
+			if pipe == ">>" || pipe == "1>>" || pipe == "2>>" {
 				fileFlag = os.O_WRONLY | os.O_CREATE | os.O_APPEND
 			}
 
@@ -434,7 +434,7 @@ func main() {
 				continue
 			}
 
-			if pipe == ">" || pipe == "1>" || pipe == ">>" {
+			if pipe == ">" || pipe == "1>" || pipe == ">>" || pipe == "1>>" {
 				stdout = file
 			} else {
 				stderr = file
