@@ -383,6 +383,16 @@ func getModifiedInput(input string) ([]string, error) {
 	return res, nil
 }
 
+func isRedirectCommand(input []string) bool {
+	for _, s := range input {
+		if s == ">" || s == "1>" || s == "2>" {
+			return true
+		}
+	}
+
+	return false
+}
+
 func main() {
 	scanner := bufio.NewScanner(os.Stdin)
 	for {
@@ -403,14 +413,15 @@ func main() {
 
 		stdout := os.Stdout
 		stdin := os.Stdin
+		stderr := os.Stderr
 		var closeOp func() error = nil
 		lastArgIndex := len(input)
 
-		isRedirectCommand := slices.Contains(input, ">") || slices.Contains(input, "1>")
-		if isRedirectCommand {
+		if isRedirectCommand(input) {
 			pipeIndex := len(input) - 2
+			pipe := input[pipeIndex]
 
-			if input[pipeIndex] != ">" && input[pipeIndex] != "1>" {
+			if pipe != ">" && pipe != "1>" && pipe != "2>" {
 				fmt.Println("Invalid pipe operator usage")
 				continue
 			}
@@ -422,7 +433,11 @@ func main() {
 				continue
 			}
 
-			stdout = file
+			if pipe == ">" || pipe == "1>" {
+				stdout = file
+			} else {
+				stderr = file
+			}
 			closeOp = file.Close
 			lastArgIndex = pipeIndex
 		}
@@ -454,7 +469,7 @@ func main() {
 			handler, exists := commands[cmd]
 			if !exists {
 				// check if it's an executable
-				res := checkAndRunExecutable(cmd, input[1:lastArgIndex], stdin, stdout, os.Stderr)
+				res := checkAndRunExecutable(cmd, input[1:lastArgIndex], stdin, stdout, stderr)
 				if !res {
 					fmt.Println(cmd + ": command not found")
 				}
