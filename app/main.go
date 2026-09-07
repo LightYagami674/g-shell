@@ -383,14 +383,15 @@ func getModifiedInput(input string) ([]string, error) {
 	return res, nil
 }
 
+var pipeSlice = []string{">", "1>", "2>", ">>", "2>>"}
+
 func isRedirectCommand(input []string) bool {
-	for _, s := range input {
-		if s == ">" || s == "1>" || s == "2>" {
-			return true
-		}
+	inputLen := len(input)
+	if inputLen < 3 || !slices.Contains(pipeSlice, input[inputLen-2]) {
+		return false
 	}
 
-	return false
+	return true
 }
 
 func main() {
@@ -421,19 +422,19 @@ func main() {
 			pipeIndex := len(input) - 2
 			pipe := input[pipeIndex]
 
-			if pipe != ">" && pipe != "1>" && pipe != "2>" {
-				fmt.Println("Invalid pipe operator usage")
-				continue
+			fileFlag := os.O_WRONLY | os.O_CREATE | os.O_TRUNC
+			if pipe == ">>" || pipe == "2>>" {
+				fileFlag = os.O_WRONLY | os.O_CREATE | os.O_APPEND
 			}
 
 			fileName := input[len(input)-1]
-			file, err := os.OpenFile(fileName, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
+			file, err := os.OpenFile(fileName, fileFlag, 0o644)
 			if err != nil {
 				fmt.Println("error opening file", fileName)
 				continue
 			}
 
-			if pipe == ">" || pipe == "1>" {
+			if pipe == ">" || pipe == "1>" || pipe == ">>" {
 				stdout = file
 			} else {
 				stderr = file
