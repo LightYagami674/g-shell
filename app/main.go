@@ -181,10 +181,7 @@ func checkAndRunExecutable(cmd string, args []string, stdin io.Reader, stdout io
 		}
 
 	} else {
-		err := cexec.Run()
-		if err != nil {
-			fmt.Println("error: ", err)
-		}
+		cexec.Run()
 	}
 
 	return true
