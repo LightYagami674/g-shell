@@ -404,6 +404,32 @@ func main() {
 			break
 		}
 
+		stdout := os.Stdout
+		stdin := os.Stdin
+		var closeOp func() error
+		lastArgIndex := len(input) - 1
+
+		isRedirectCommand := slices.Contains(input, ">")
+		if isRedirectCommand {
+			pipeIndex := len(input) - 2
+
+			if input[pipeIndex] != ">" && input[pipeIndex] != "1>" {
+				fmt.Println("Invalid pipe operator usage")
+				continue
+			}
+
+			fileName := input[len(input)-1]
+			file, err := os.OpenFile(fileName, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
+			if err != nil {
+				panic("Error opening file")
+			}
+
+			stdout = file
+			closeOp = file.Close
+			lastArgIndex = pipeIndex
+
+		}
+
 		if isPipeCommand(input) {
 			commandArr := strings.Split(scannedText, "|")
 			commandsWithInputs := make([]CommandsWithInputs, 0)
@@ -436,7 +462,10 @@ func main() {
 					fmt.Println(cmd + ": command not found")
 				}
 			} else {
-				handler(input[1:], os.Stdin, os.Stdout)
+				handler(input[1:lastArgIndex], stdin, stdout)
+				if closeOp != nil {
+					closeOp()
+				}
 			}
 
 		}
