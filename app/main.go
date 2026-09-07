@@ -133,7 +133,7 @@ var commands = map[string]BuiltinFn{
 	},
 }
 
-func checkAndRunExecutable(cmd string, args []string) bool {
+func checkAndRunExecutable(cmd string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) bool {
 	_, err := exec.LookPath(cmd)
 	if err != nil {
 		return false
@@ -145,9 +145,9 @@ func checkAndRunExecutable(cmd string, args []string) bool {
 	}
 
 	cexec := exec.Command(cmd, args...)
-	cexec.Stdin = os.Stdin
-	cexec.Stdout = os.Stdout
-	cexec.Stderr = os.Stderr
+	cexec.Stdin = stdin
+	cexec.Stdout = stdout
+	cexec.Stderr = stderr
 
 	if isBackgroundJob {
 		err := cexec.Start()
@@ -406,8 +406,8 @@ func main() {
 
 		stdout := os.Stdout
 		stdin := os.Stdin
-		var closeOp func() error
-		lastArgIndex := len(input) - 1
+		var closeOp func() error = nil
+		lastArgIndex := len(input)
 
 		isRedirectCommand := slices.Contains(input, ">")
 		if isRedirectCommand {
@@ -456,14 +456,17 @@ func main() {
 			handler, exists := commands[cmd]
 			if !exists {
 				// check if it's an executable
-				res := checkAndRunExecutable(cmd, input[1:lastArgIndex])
+				res := checkAndRunExecutable(cmd, input[1:lastArgIndex], stdin, stdout, os.Stderr)
 				if !res {
 					fmt.Println(cmd + ": command not found")
 				}
 			} else {
 				handler(input[1:lastArgIndex], stdin, stdout)
-				if closeOp != nil {
-					closeOp()
+			}
+			if closeOp != nil {
+				err := closeOp()
+				if err != nil {
+					panic("Error closing file")
 				}
 			}
 
