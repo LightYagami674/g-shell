@@ -427,7 +427,6 @@ func main() {
 			stdout = file
 			closeOp = file.Close
 			lastArgIndex = pipeIndex
-
 		}
 
 		if isPipeCommand(input) {
@@ -457,7 +456,7 @@ func main() {
 			handler, exists := commands[cmd]
 			if !exists {
 				// check if it's an executable
-				res := checkAndRunExecutable(cmd, input[1:])
+				res := checkAndRunExecutable(cmd, input[1:lastArgIndex])
 				if !res {
 					fmt.Println(cmd + ": command not found")
 				}
