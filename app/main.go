@@ -409,7 +409,7 @@ func main() {
 		var closeOp func() error = nil
 		lastArgIndex := len(input)
 
-		isRedirectCommand := slices.Contains(input, ">")
+		isRedirectCommand := slices.Contains(input, ">") || slices.Contains(input, "1>")
 		if isRedirectCommand {
 			pipeIndex := len(input) - 2
 
@@ -421,7 +421,8 @@ func main() {
 			fileName := input[len(input)-1]
 			file, err := os.OpenFile(fileName, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
 			if err != nil {
-				panic("Error opening file")
+				fmt.Println("error opening file", fileName)
+				continue
 			}
 
 			stdout = file
