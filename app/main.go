@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"errors"
 	"fmt"
 	"io"
@@ -11,6 +10,8 @@ import (
 	"strings"
 	"sync"
 	"syscall"
+
+	"github.com/chzyer/readline"
 )
 
 type BackgroundJob struct {
@@ -395,14 +396,28 @@ func isRedirectCommand(input []string) bool {
 }
 
 func main() {
-	scanner := bufio.NewScanner(os.Stdin)
+	completer := readline.NewPrefixCompleter(
+		readline.PcItem("echo"),
+		readline.PcItem("exit"),
+	)
+
+	rl, err := readline.NewEx(&readline.Config{
+		Prompt:       "$ ",
+		AutoComplete: completer,
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	defer rl.Close()
 	for {
 
-		fmt.Print("$ ")
-		scanner.Scan()
+		line, err := rl.Readline()
+		if err != nil {
+			fmt.Println("error: ", err)
+		}
 
-		scannedText := scanner.Text()
-		input, err := getModifiedInput(scannedText)
+		input, err := getModifiedInput(line)
 		if err != nil {
 			fmt.Println("error:", err)
 		}
@@ -444,7 +459,7 @@ func main() {
 		}
 
 		if isPipeCommand(input) {
-			commandArr := strings.Split(scannedText, "|")
+			commandArr := strings.Split(line, "|")
 			commandsWithInputs := make([]CommandsWithInputs, 0)
 
 			for _, text := range commandArr {
