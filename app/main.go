@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"os/exec"
 	"slices"
@@ -308,7 +309,7 @@ func getModifiedInput(input string) ([]string, error) {
 				}
 			case '\\':
 				if isLast {
-					return nil, errors.New("Invalid input, open double quotes without end")
+					return nil, errors.New("invalid input, open double quotes without end")
 				}
 
 				if input[i+1] == '"' || input[i+1] == '\\' {
@@ -395,11 +396,31 @@ func isRedirectCommand(input []string) bool {
 	return true
 }
 
+type Completer struct {
+	commands []string
+}
+
+func (c *Completer) Do(line []rune, pos int) ([][]rune, int) {
+	prefix := string(line[:pos])
+
+	var matches [][]rune
+
+	for _, cmd := range c.commands {
+		if strings.HasPrefix(cmd, prefix) {
+			stringToShow := cmd[len(prefix):]
+			matches = append(matches, []rune(stringToShow))
+		}
+	}
+
+	if len(matches) == 0 {
+		fmt.Print("\a")
+	}
+
+	return matches, len(prefix)
+}
+
 func main() {
-	completer := readline.NewPrefixCompleter(
-		readline.PcItem("echo"),
-		readline.PcItem("exit"),
-	)
+	completer := &Completer{commands: slices.Collect(maps.Keys(commandList))}
 
 	rl, err := readline.NewEx(&readline.Config{
 		Prompt:       "$ ",
