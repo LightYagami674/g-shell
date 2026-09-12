@@ -4,9 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"maps"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -396,35 +396,65 @@ func isRedirectCommand(input []string) bool {
 	return true
 }
 
-type Completer struct {
-	commands []string
+type BellCompleter struct {
+	innerCompleter readline.AutoCompleter
 }
 
-func (c *Completer) Do(line []rune, pos int) ([][]rune, int) {
-	prefix := string(line[:pos])
+func (c *BellCompleter) Do(line []rune, pos int) ([][]rune, int) {
+	newLine, length := c.innerCompleter.Do(line, pos)
 
-	var matches [][]rune
-
-	for _, cmd := range c.commands {
-		if strings.HasPrefix(cmd, prefix) {
-			stringToShow := cmd[len(prefix):] + " "
-			matches = append(matches, []rune(stringToShow))
-		}
-	}
-
-	if len(matches) == 0 {
+	if length == 0 {
 		fmt.Print("\a")
 	}
 
-	return matches, len(prefix)
+	return newLine, length
+}
+
+func completeExecutable() []string {
+	var matches []string
+
+	for _, dir := range filepath.SplitList(os.Getenv("PATH")) {
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			continue
+		}
+
+		for _, entry := range entries {
+			if entry.IsDir() {
+				continue
+			}
+
+			matches = append(matches, entry.Name())
+		}
+	}
+
+	return matches
+}
+
+func prePopulatePrefixCompleted() *readline.PrefixCompleter {
+	pcList := make([]readline.PrefixCompleterInterface, 0)
+
+	for command := range commandList {
+		pcList = append(pcList, readline.PcItem(command))
+	}
+
+	executablesList := completeExecutable()
+
+	for _, executable := range executablesList {
+		pcList = append(pcList, readline.PcItem(executable))
+	}
+	prefixCompleter := readline.NewPrefixCompleter(pcList...)
+
+	return prefixCompleter
 }
 
 func main() {
-	completer := &Completer{commands: slices.Collect(maps.Keys(commandList))}
+	prefixCompleter := prePopulatePrefixCompleted()
+	bellCompleter := &BellCompleter{innerCompleter: prefixCompleter}
 
 	rl, err := readline.NewEx(&readline.Config{
 		Prompt:       "$ ",
-		AutoComplete: completer,
+		AutoComplete: bellCompleter,
 	})
 	if err != nil {
 		panic(err)
