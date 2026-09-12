@@ -407,7 +407,7 @@ func (c *Completer) Do(line []rune, pos int) ([][]rune, int) {
 
 	for _, cmd := range c.commands {
 		if strings.HasPrefix(cmd, prefix) {
-			stringToShow := cmd[len(prefix):]
+			stringToShow := cmd[len(prefix):] + " "
 			matches = append(matches, []rune(stringToShow))
 		}
 	}
