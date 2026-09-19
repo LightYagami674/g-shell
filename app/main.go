@@ -402,6 +402,25 @@ type BellCompleter struct {
 	refresh    func()
 }
 
+func longestCommonPrefix(matches []string) string {
+	if len(matches) == 0 {
+		return ""
+	}
+
+	common := []rune(matches[0])
+	for _, match := range matches[1:] {
+		end := 0
+		for _, char := range match {
+			if end == len(common) || common[end] != char {
+				break
+			}
+			end++
+		}
+		common = common[:end]
+	}
+	return string(common)
+}
+
 func (c *BellCompleter) Do(line []rune, pos int) ([][]rune, int) {
 	prefix := string(line[:pos])
 
@@ -420,6 +439,12 @@ func (c *BellCompleter) Do(line []rune, pos int) ([][]rune, int) {
 		c.isFirstTab = true
 		return [][]rune{[]rune(strings.TrimPrefix(matches[0], prefix) + " ")}, pos
 	default:
+		common := longestCommonPrefix(matches)
+		if len(common) > len(prefix) {
+			c.isFirstTab = true
+			return [][]rune{[]rune(strings.TrimPrefix(common, prefix))}, pos
+		}
+
 		if c.isFirstTab {
 			fmt.Print("\a")
 			c.isFirstTab = false
