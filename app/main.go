@@ -451,8 +451,12 @@ func (c *BellCompleter) completeFilename(prefix string) ([][]rune, int) {
 	entries, err := os.ReadDir(directory)
 	if err == nil {
 		for _, entry := range entries {
-			if !entry.IsDir() && strings.HasPrefix(entry.Name(), namePrefix) {
-				matches = append(matches, pathPrefix+entry.Name())
+			if strings.HasPrefix(entry.Name(), namePrefix) {
+				candidate := pathPrefix + entry.Name()
+				if entry.IsDir() {
+					candidate += "/"
+				}
+				matches = append(matches, candidate)
 			}
 		}
 	}
@@ -467,7 +471,11 @@ func (c *BellCompleter) completeMatches(prefix string, matches []string) ([][]ru
 		c.isFirstTab = true
 	case 1:
 		c.isFirstTab = true
-		return [][]rune{[]rune(strings.TrimPrefix(matches[0], prefix) + " ")}, pos
+		completion := strings.TrimPrefix(matches[0], prefix)
+		if !strings.HasSuffix(matches[0], "/") {
+			completion += " "
+		}
+		return [][]rune{[]rune(completion)}, pos
 	default:
 		common := longestCommonPrefix(matches)
 		if len(common) > len(prefix) {
