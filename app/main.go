@@ -423,6 +423,9 @@ func longestCommonPrefix(matches []string) string {
 
 func (c *BellCompleter) Do(line []rune, pos int) ([][]rune, int) {
 	prefix := string(line[:pos])
+	if lastSpace := strings.LastIndex(prefix, " "); lastSpace >= 0 {
+		return c.completeFilename(prefix[lastSpace+1:])
+	}
 
 	var matches []string
 
@@ -431,6 +434,24 @@ func (c *BellCompleter) Do(line []rune, pos int) ([][]rune, int) {
 			matches = append(matches, cmd)
 		}
 	}
+	return c.completeMatches(prefix, matches)
+}
+
+func (c *BellCompleter) completeFilename(prefix string) ([][]rune, int) {
+	var matches []string
+	entries, err := os.ReadDir(".")
+	if err == nil {
+		for _, entry := range entries {
+			if !entry.IsDir() && strings.HasPrefix(entry.Name(), prefix) {
+				matches = append(matches, entry.Name())
+			}
+		}
+	}
+	return c.completeMatches(prefix, matches)
+}
+
+func (c *BellCompleter) completeMatches(prefix string, matches []string) ([][]rune, int) {
+	pos := len([]rune(prefix))
 	switch len(matches) {
 	case 0:
 		fmt.Print("\a")
