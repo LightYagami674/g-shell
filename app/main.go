@@ -438,12 +438,21 @@ func (c *BellCompleter) Do(line []rune, pos int) ([][]rune, int) {
 }
 
 func (c *BellCompleter) completeFilename(prefix string) ([][]rune, int) {
+	directory := "."
+	pathPrefix := ""
+	namePrefix := prefix
+	if lastSlash := strings.LastIndex(prefix, "/"); lastSlash >= 0 {
+		pathPrefix = prefix[:lastSlash+1]
+		directory = pathPrefix
+		namePrefix = prefix[lastSlash+1:]
+	}
+
 	var matches []string
-	entries, err := os.ReadDir(".")
+	entries, err := os.ReadDir(directory)
 	if err == nil {
 		for _, entry := range entries {
-			if !entry.IsDir() && strings.HasPrefix(entry.Name(), prefix) {
-				matches = append(matches, entry.Name())
+			if !entry.IsDir() && strings.HasPrefix(entry.Name(), namePrefix) {
+				matches = append(matches, pathPrefix+entry.Name())
 			}
 		}
 	}
