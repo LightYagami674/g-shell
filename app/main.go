@@ -397,17 +397,41 @@ func isRedirectCommand(input []string) bool {
 }
 
 type BellCompleter struct {
-	innerCompleter readline.AutoCompleter
+	commands   []string
+	isFirstTab bool
+	refresh    func()
 }
 
 func (c *BellCompleter) Do(line []rune, pos int) ([][]rune, int) {
-	newLine, length := c.innerCompleter.Do(line, pos)
+	prefix := string(line[:pos])
 
-	if length == 0 {
+	var matches []string
+
+	for _, cmd := range c.commands {
+		if strings.HasPrefix(cmd, prefix) {
+			matches = append(matches, cmd)
+		}
+	}
+	switch len(matches) {
+	case 0:
 		fmt.Print("\a")
+		c.isFirstTab = true
+	case 1:
+		c.isFirstTab = true
+		return [][]rune{[]rune(strings.TrimPrefix(matches[0], prefix) + " ")}, pos
+	default:
+		if c.isFirstTab {
+			fmt.Print("\a")
+			c.isFirstTab = false
+		} else {
+			fmt.Print("\n" + strings.Join(matches, "  ") + "\n")
+			if c.refresh != nil {
+				c.refresh()
+			}
+		}
 	}
 
-	return newLine, length
+	return nil, pos
 }
 
 func completeExecutable() []string {
@@ -420,7 +444,8 @@ func completeExecutable() []string {
 		}
 
 		for _, entry := range entries {
-			if entry.IsDir() {
+			info, err := os.Stat(filepath.Join(dir, entry.Name()))
+			if err != nil || !info.Mode().IsRegular() || info.Mode().Perm()&0o111 == 0 {
 				continue
 			}
 
@@ -431,36 +456,44 @@ func completeExecutable() []string {
 	return matches
 }
 
-func prePopulatePrefixCompleted() *readline.PrefixCompleter {
-	pcList := make([]readline.PrefixCompleterInterface, 0)
+func prePopulatePrefixCompleter() *BellCompleter {
+	prefixCommandList := make([]string, 0)
 
 	for command := range commandList {
-		pcList = append(pcList, readline.PcItem(command))
+		prefixCommandList = append(prefixCommandList, command)
 	}
 
 	executablesList := completeExecutable()
 
-	for _, executable := range executablesList {
-		pcList = append(pcList, readline.PcItem(executable))
-	}
-	prefixCompleter := readline.NewPrefixCompleter(pcList...)
+	prefixCommandList = append(prefixCommandList, executablesList...)
+	slices.Sort(prefixCommandList)
+	prefixCommandList = slices.Compact(prefixCommandList)
 
-	return prefixCompleter
+	return &BellCompleter{
+		commands:   prefixCommandList,
+		isFirstTab: true,
+	}
 }
 
 func main() {
-	prefixCompleter := prePopulatePrefixCompleted()
-	bellCompleter := &BellCompleter{innerCompleter: prefixCompleter}
-
-	rl, err := readline.NewEx(&readline.Config{
+	bellCompleter := prePopulatePrefixCompleter()
+	config := readline.Config{
 		Prompt:       "$ ",
 		AutoComplete: bellCompleter,
+	}
+	config.SetListener(func(line []rune, pos int, key rune) ([]rune, int, bool) {
+		if key != '\t' {
+			bellCompleter.isFirstTab = true
+		}
+		return line, pos, false
 	})
+	rl, err := readline.NewEx(&config)
 	if err != nil {
 		panic(err)
 	}
 
 	defer rl.Close()
+	bellCompleter.refresh = rl.Refresh
 	for {
 
 		line, err := rl.Readline()
