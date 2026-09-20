@@ -78,12 +78,13 @@ func handleBackgroundJobs(printDoneJobs bool, stdin io.Reader, stdout io.Writer)
 }
 
 var commandList = map[string]struct{}{
-	"echo": {},
-	"exit": {},
-	"type": {},
-	"pwd":  {},
-	"cd":   {},
-	"jobs": {},
+	"echo":     {},
+	"exit":     {},
+	"type":     {},
+	"pwd":      {},
+	"cd":       {},
+	"jobs":     {},
+	"complete": {},
 }
 
 var commands = map[string]BuiltinFn{
@@ -133,6 +134,7 @@ var commands = map[string]BuiltinFn{
 	"jobs": func(input []string, stdin io.Reader, stdout io.Writer) {
 		handleBackgroundJobs(false, stdin, stdout)
 	},
+	"complete": func(input []string, stdin io.Reader, stdout io.Writer) {},
 }
 
 func checkAndRunExecutable(cmd string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) bool {
