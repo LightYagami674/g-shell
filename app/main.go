@@ -134,7 +134,20 @@ var commands = map[string]BuiltinFn{
 	"jobs": func(input []string, stdin io.Reader, stdout io.Writer) {
 		handleBackgroundJobs(false, stdin, stdout)
 	},
-	"complete": func(input []string, stdin io.Reader, stdout io.Writer) {},
+	"complete": handleComplete,
+}
+
+func handleComplete(args []string, stdin io.Reader, stdout io.Writer) {
+	if len(args) == 0 {
+		return
+	}
+
+	switch args[0] {
+	case "-p":
+		for _, command := range args[1:] {
+			fmt.Fprintf(stdout, "complete: %s: no completion specification\n", command)
+		}
+	}
 }
 
 func checkAndRunExecutable(cmd string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) bool {
