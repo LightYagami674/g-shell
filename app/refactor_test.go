@@ -157,3 +157,54 @@ func TestBuiltinCompletionRegistry(t *testing.T) {
 		}
 	}
 }
+
+func TestRegisteredCompleterIsExecuted(t *testing.T) {
+	original := completionSpecs
+	completionSpecs = make(map[string]string)
+	t.Cleanup(func() { completionSpecs = original })
+
+	dir := t.TempDir()
+	script := filepath.Join(dir, "docker-completer")
+	if err := os.WriteFile(script, []byte("#!/bin/sh\nprintf 'run\\n'\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	completionSpecs["docker"] = script
+
+	completer := &BellCompleter{isFirstTab: true}
+	for _, test := range []struct {
+		line, want string
+	}{
+		{"docker ", "run "},
+		{"docker r", "un "},
+	} {
+		candidates, length := completer.Do([]rune(test.line), len([]rune(test.line)))
+		if len(candidates) != 1 || string(candidates[0]) != test.want || length != len([]rune(currentWord(test.line))) {
+			t.Errorf("complete %q = %q, length %d", test.line, candidates, length)
+		}
+	}
+}
+
+func TestUnregisteredCommandFallsBackToFilenameCompletion(t *testing.T) {
+	original := completionSpecs
+	completionSpecs = make(map[string]string)
+	t.Cleanup(func() { completionSpecs = original })
+
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "example.txt"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	oldDirectory, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(dir); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(oldDirectory) })
+
+	completer := &BellCompleter{isFirstTab: true}
+	candidates, length := completer.Do([]rune("cat ex"), len([]rune("cat ex")))
+	if len(candidates) != 1 || string(candidates[0]) != "ample.txt " || length != 2 {
+		t.Errorf("fallback completion = %q, length %d", candidates, length)
+	}
+}

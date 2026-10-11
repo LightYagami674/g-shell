@@ -3,9 +3,11 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
+	"unicode"
 )
 
 type BellCompleter struct {
@@ -35,8 +37,12 @@ func longestCommonPrefix(matches []string) string {
 
 func (c *BellCompleter) Do(line []rune, pos int) ([][]rune, int) {
 	prefix := string(line[:pos])
-	if lastSpace := strings.LastIndex(prefix, " "); lastSpace >= 0 {
-		return c.completeFilename(prefix[lastSpace+1:])
+	if firstSpace := strings.IndexFunc(prefix, unicode.IsSpace); firstSpace >= 0 {
+		command := prefix[:firstSpace]
+		if script, exists := completionSpecs[command]; exists {
+			return c.completeRegistered(script, currentWord(prefix))
+		}
+		return c.completeFilename(currentWord(prefix))
 	}
 
 	var matches []string
@@ -47,6 +53,26 @@ func (c *BellCompleter) Do(line []rune, pos int) ([][]rune, int) {
 		}
 	}
 	return c.completeMatches(prefix, matches)
+}
+
+func currentWord(line string) string {
+	if lastSpace := strings.LastIndexFunc(line, unicode.IsSpace); lastSpace >= 0 {
+		return line[lastSpace+1:]
+	}
+	return line
+}
+
+func (c *BellCompleter) completeRegistered(script, prefix string) ([][]rune, int) {
+	output, err := exec.Command(script).Output()
+	if err != nil {
+		return c.completeMatches(prefix, nil)
+	}
+
+	candidate := strings.TrimSpace(string(output))
+	if candidate == "" || !strings.HasPrefix(candidate, prefix) {
+		return c.completeMatches(prefix, nil)
+	}
+	return c.completeMatches(prefix, []string{candidate})
 }
 
 func (c *BellCompleter) completeFilename(prefix string) ([][]rune, int) {
