@@ -184,6 +184,56 @@ func TestRegisteredCompleterIsExecuted(t *testing.T) {
 	}
 }
 
+func TestRegisteredCompleterReceivesCompletionContext(t *testing.T) {
+	original := completionSpecs
+	completionSpecs = make(map[string]string)
+	t.Cleanup(func() { completionSpecs = original })
+
+	dir := t.TempDir()
+	script := filepath.Join(dir, "git-completer")
+	contents := `#!/bin/sh
+if [ "$1" = "git" ] && [ "$2" = "set" ] && [ "$3" = "remote" ]; then
+  printf 'set-url\n'
+fi
+`
+	if err := os.WriteFile(script, []byte(contents), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	completionSpecs["git"] = script
+
+	completer := &BellCompleter{isFirstTab: true}
+	line := "git remote set"
+	candidates, length := completer.Do([]rune(line), len([]rune(line)))
+	if len(candidates) != 1 || string(candidates[0]) != "-url " || length != 3 {
+		t.Fatalf("complete %q = %q, length %d", line, candidates, length)
+	}
+}
+
+func TestRegisteredCompleterReceivesEmptyCurrentWord(t *testing.T) {
+	original := completionSpecs
+	completionSpecs = make(map[string]string)
+	t.Cleanup(func() { completionSpecs = original })
+
+	dir := t.TempDir()
+	script := filepath.Join(dir, "git-completer")
+	contents := `#!/bin/sh
+if [ "$1" = "git" ] && [ -z "$2" ] && [ "$3" = "remote" ]; then
+  printf 'add\nremove\n'
+fi
+`
+	if err := os.WriteFile(script, []byte(contents), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	completionSpecs["git"] = script
+
+	completer := &BellCompleter{isFirstTab: true}
+	line := "git remote "
+	candidates, length := completer.Do([]rune(line), len([]rune(line)))
+	if candidates != nil || length != 0 {
+		t.Fatalf("complete %q = %q, length %d", line, candidates, length)
+	}
+}
+
 func TestUnregisteredCommandFallsBackToFilenameCompletion(t *testing.T) {
 	original := completionSpecs
 	completionSpecs = make(map[string]string)

@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 )
 
 type BellCompleter struct {
@@ -40,7 +41,8 @@ func (c *BellCompleter) Do(line []rune, pos int) ([][]rune, int) {
 	if firstSpace := strings.IndexFunc(prefix, unicode.IsSpace); firstSpace >= 0 {
 		command := prefix[:firstSpace]
 		if script, exists := completionSpecs[command]; exists {
-			return c.completeRegistered(script, currentWord(prefix))
+			current, previous := completionWords(prefix)
+			return c.completeRegistered(script, command, current, previous)
 		}
 		return c.completeFilename(currentWord(prefix))
 	}
@@ -62,17 +64,39 @@ func currentWord(line string) string {
 	return line
 }
 
-func (c *BellCompleter) completeRegistered(script, prefix string) ([][]rune, int) {
-	output, err := exec.Command(script).Output()
+func completionWords(line string) (current, previous string) {
+	words := strings.Fields(line)
+	if len(words) == 0 {
+		return "", ""
+	}
+
+	last, _ := utf8.DecodeLastRuneInString(line)
+	if unicode.IsSpace(last) {
+		return "", words[len(words)-1]
+	}
+
+	current = words[len(words)-1]
+	if len(words) > 1 {
+		previous = words[len(words)-2]
+	}
+	return current, previous
+}
+
+func (c *BellCompleter) completeRegistered(script, command, prefix, previous string) ([][]rune, int) {
+	output, err := exec.Command(script, command, prefix, previous).Output()
 	if err != nil {
 		return c.completeMatches(prefix, nil)
 	}
 
-	candidate := strings.TrimSpace(string(output))
-	if candidate == "" || !strings.HasPrefix(candidate, prefix) {
-		return c.completeMatches(prefix, nil)
+	var matches []string
+	for candidate := range strings.Lines(string(output)) {
+		candidate = strings.TrimSuffix(candidate, "\n")
+		candidate = strings.TrimSuffix(candidate, "\r")
+		if candidate != "" && strings.HasPrefix(candidate, prefix) {
+			matches = append(matches, candidate)
+		}
 	}
-	return c.completeMatches(prefix, []string{candidate})
+	return c.completeMatches(prefix, matches)
 }
 
 func (c *BellCompleter) completeFilename(prefix string) ([][]rune, int) {
