@@ -35,6 +35,9 @@ func (w synchronizedWriter) Write(data []byte) (int, error) {
 
 // ExecuteLine owns parsing and dispatch; the prompt loop only handles input.
 func ExecuteLine(line string, stdin io.Reader, stdout, stderr io.Writer) ExecutionResult {
+	if strings.TrimSpace(line) != "" {
+		commandHistory = append(commandHistory, line)
+	}
 	input, err := getModifiedInput(line)
 	if err != nil {
 		fmt.Fprintln(stderr, "error:", err)

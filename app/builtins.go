@@ -13,6 +13,10 @@ type BuiltinFn func(args []string, stdin io.Reader, stdout, stderr io.Writer) Ex
 
 var completionSpecs = make(map[string]string)
 
+// commandHistory preserves submitted lines for the history builtin. Readline
+// manages its own history separately for interactive navigation.
+var commandHistory []string
+
 // Initialized separately so handlers can consult the same registry without an
 // initialization cycle (type reports whether another command is a builtin).
 var commands map[string]BuiltinFn
@@ -26,7 +30,15 @@ func init() {
 		"cd":       handleCd,
 		"jobs":     handleJobs,
 		"complete": handleComplete,
+		"history":  handleHistory,
 	}
+}
+
+func handleHistory(args []string, stdin io.Reader, stdout, stderr io.Writer) ExecutionResult {
+	for i, line := range commandHistory {
+		fmt.Fprintf(stdout, "%5d  %s\n", i+1, line)
+	}
+	return ExecutionResult{}
 }
 
 func handleEcho(args []string, stdin io.Reader, stdout, stderr io.Writer) ExecutionResult {

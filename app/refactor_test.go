@@ -29,11 +29,25 @@ func TestBuiltinDispatchAndRecognition(t *testing.T) {
 	if result.Status != 0 || stdout != "hello world again\n" || stderr != "" {
 		t.Fatalf("echo = %+v, stdout %q, stderr %q", result, stdout, stderr)
 	}
-	for _, name := range []string{"echo", "exit", "type", "pwd", "cd", "jobs", "complete"} {
+	for _, name := range []string{"echo", "exit", "type", "pwd", "cd", "jobs", "complete", "history"} {
 		result, stdout, stderr := runTestLine("type " + name)
 		if result.Status != 0 || stdout != name+" is a shell builtin\n" || stderr != "" {
 			t.Errorf("type %s = %+v, stdout %q, stderr %q", name, result, stdout, stderr)
 		}
+	}
+}
+
+func TestHistoryListsSubmittedLines(t *testing.T) {
+	original := commandHistory
+	commandHistory = nil
+	t.Cleanup(func() { commandHistory = original })
+	for _, line := range []string{"   ", `echo "hello world"`, `echo "hello world"`, "missing-history-test-command"} {
+		runTestLine(line)
+	}
+	result, stdout, stderr := runTestLine("history")
+	want := "    1  echo \"hello world\"\n    2  echo \"hello world\"\n    3  missing-history-test-command\n    4  history\n"
+	if result.Status != 0 || result.Exit || stdout != want || stderr != "" {
+		t.Fatalf("history = %+v, stdout %q, stderr %q", result, stdout, stderr)
 	}
 }
 
