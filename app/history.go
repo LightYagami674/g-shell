@@ -12,10 +12,13 @@ import (
 // manages its own history separately for interactive navigation.
 var commandHistory []string
 
+// historyAppendIndex advances only after a successful append.
+var historyAppendIndex int
+
 func handleHistory(args []string, stdin io.Reader, stdout, stderr io.Writer) ExecutionResult {
 	if len(args) > 0 {
 		switch args[0] {
-		case "-r", "-w":
+		case "-r", "-w", "-a":
 			if len(args) != 2 {
 				fmt.Fprintf(stderr, "history: usage: history %s <path>\n", args[0])
 				return ExecutionResult{Status: 1}
@@ -26,6 +29,8 @@ func handleHistory(args []string, stdin io.Reader, stdout, stderr io.Writer) Exe
 				err = readHistoryFile(args[1])
 			case "-w":
 				err = writeHistoryFile(args[1])
+			case "-a":
+				err = appendHistoryFile(args[1])
 			}
 			if err != nil {
 				fmt.Fprintln(stderr, "history:", err)
@@ -70,10 +75,31 @@ func readHistoryFile(path string) error {
 }
 
 func writeHistoryFile(path string) error {
+	return os.WriteFile(path, historyFileContents(commandHistory), 0o644)
+}
+
+func appendHistoryFile(path string) error {
+	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o644)
+	if err != nil {
+		return err
+	}
+	_, writeErr := file.Write(historyFileContents(commandHistory[historyAppendIndex:]))
+	closeErr := file.Close()
+	if writeErr != nil {
+		return writeErr
+	}
+	if closeErr != nil {
+		return closeErr
+	}
+	historyAppendIndex = len(commandHistory)
+	return nil
+}
+
+func historyFileContents(entries []string) []byte {
 	var contents strings.Builder
-	for _, line := range commandHistory {
+	for _, line := range entries {
 		contents.WriteString(line)
 		contents.WriteByte('\n')
 	}
-	return os.WriteFile(path, []byte(contents.String()), 0o644)
+	return []byte(contents.String())
 }
