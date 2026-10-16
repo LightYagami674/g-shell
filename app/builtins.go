@@ -13,10 +13,6 @@ type BuiltinFn func(args []string, stdin io.Reader, stdout, stderr io.Writer) Ex
 
 var completionSpecs = make(map[string]string)
 
-// commandHistory preserves submitted lines for the history builtin. Readline
-// manages its own history separately for interactive navigation.
-var commandHistory []string
-
 // Initialized separately so handlers can consult the same registry without an
 // initialization cycle (type reports whether another command is a builtin).
 var commands map[string]BuiltinFn
@@ -32,46 +28,6 @@ func init() {
 		"complete": handleComplete,
 		"history":  handleHistory,
 	}
-}
-
-func handleHistory(args []string, stdin io.Reader, stdout, stderr io.Writer) ExecutionResult {
-	if len(args) > 0 && args[0] == "-r" {
-		if len(args) != 2 {
-			fmt.Fprintln(stderr, "history: usage: history -r <path>")
-			return ExecutionResult{Status: 1}
-		}
-		contents, err := os.ReadFile(args[1])
-		if err != nil {
-			fmt.Fprintln(stderr, "history:", err)
-			return ExecutionResult{Status: 1}
-		}
-		for _, line := range strings.Split(string(contents), "\n") {
-			line = strings.TrimSuffix(line, "\r")
-			if strings.TrimSpace(line) != "" {
-				commandHistory = append(commandHistory, line)
-			}
-		}
-		return ExecutionResult{}
-	}
-	if len(args) > 1 {
-		fmt.Fprintln(stderr, "history: too many arguments")
-		return ExecutionResult{Status: 1}
-	}
-	start := 0
-	if len(args) == 1 {
-		count, err := strconv.Atoi(args[0])
-		if err != nil || count < 0 {
-			fmt.Fprintf(stderr, "history: %s: non-negative number required\n", args[0])
-			return ExecutionResult{Status: 1}
-		}
-		if count < len(commandHistory) {
-			start = len(commandHistory) - count
-		}
-	}
-	for i := start; i < len(commandHistory); i++ {
-		fmt.Fprintf(stdout, "%5d  %s\n", i+1, commandHistory[i])
-	}
-	return ExecutionResult{}
 }
 
 func handleEcho(args []string, stdin io.Reader, stdout, stderr io.Writer) ExecutionResult {

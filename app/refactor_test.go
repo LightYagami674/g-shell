@@ -93,6 +93,44 @@ func TestHistoryReadErrors(t *testing.T) {
 	}
 }
 
+func TestHistoryWriteFile(t *testing.T) {
+	original := commandHistory
+	t.Cleanup(func() { commandHistory = original })
+	for _, existing := range []bool{false, true} {
+		path := filepath.Join(t.TempDir(), "history file")
+		if existing {
+			if err := os.WriteFile(path, []byte(strings.Repeat("old entry\n", 100)), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}
+		commandHistory = nil
+		runTestLine("echo hello")
+		runTestLine("echo world")
+		command := "history -w '" + path + "'"
+		result, stdout, stderr := runTestLine(command)
+		if result.Status != 0 || result.Exit || stdout != "" || stderr != "" {
+			t.Fatalf("write history = %+v, stdout %q, stderr %q", result, stdout, stderr)
+		}
+		want := "echo hello\necho world\n" + command + "\n"
+		if data, err := os.ReadFile(path); err != nil || string(data) != want {
+			t.Fatalf("history file = %q, want %q, error %v", data, want, err)
+		}
+	}
+}
+
+func TestHistoryWriteErrors(t *testing.T) {
+	original := commandHistory
+	commandHistory = nil
+	t.Cleanup(func() { commandHistory = original })
+	directory := t.TempDir()
+	for _, line := range []string{"history -w", "history -w a b", "history -w '" + directory + "'"} {
+		result, stdout, stderr := runTestLine(line)
+		if result.Status == 0 || result.Exit || stdout != "" || stderr == "" {
+			t.Fatalf("%s = %+v, stdout %q, stderr %q", line, result, stdout, stderr)
+		}
+	}
+}
+
 func TestHistoryLimit(t *testing.T) {
 	original := commandHistory
 	t.Cleanup(func() { commandHistory = original })
