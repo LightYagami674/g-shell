@@ -35,8 +35,23 @@ func init() {
 }
 
 func handleHistory(args []string, stdin io.Reader, stdout, stderr io.Writer) ExecutionResult {
-	for i, line := range commandHistory {
-		fmt.Fprintf(stdout, "%5d  %s\n", i+1, line)
+	if len(args) > 1 {
+		fmt.Fprintln(stderr, "history: too many arguments")
+		return ExecutionResult{Status: 1}
+	}
+	start := 0
+	if len(args) == 1 {
+		count, err := strconv.Atoi(args[0])
+		if err != nil || count < 0 {
+			fmt.Fprintf(stderr, "history: %s: non-negative number required\n", args[0])
+			return ExecutionResult{Status: 1}
+		}
+		if count < len(commandHistory) {
+			start = len(commandHistory) - count
+		}
+	}
+	for i := start; i < len(commandHistory); i++ {
+		fmt.Fprintf(stdout, "%5d  %s\n", i+1, commandHistory[i])
 	}
 	return ExecutionResult{}
 }

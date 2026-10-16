@@ -51,6 +51,32 @@ func TestHistoryListsSubmittedLines(t *testing.T) {
 	}
 }
 
+func TestHistoryLimit(t *testing.T) {
+	original := commandHistory
+	t.Cleanup(func() { commandHistory = original })
+	for _, test := range []struct {
+		command string
+		want    string
+		fail    bool
+	}{
+		{"history 2", "    3  invalid_command\n    4  history 2\n", false},
+		{"history 1", "    4  history 1\n", false},
+		{"history 0", "", false},
+		{"history 99", "    1  echo hello\n    2  echo world\n    3  invalid_command\n    4  history 99\n", false},
+		{"history -1", "", true},
+		{"history nope", "", true},
+		{"history 1 2", "", true},
+	} {
+		t.Run(test.command, func(t *testing.T) {
+			commandHistory = []string{"echo hello", "echo world", "invalid_command"}
+			result, stdout, stderr := runTestLine(test.command)
+			if stdout != test.want || (result.Status != 0) != test.fail || (stderr != "") != test.fail || result.Exit {
+				t.Fatalf("%s = %+v, stdout %q, stderr %q", test.command, result, stdout, stderr)
+			}
+		})
+	}
+}
+
 func TestCompleteRegistrationAndErrorStreams(t *testing.T) {
 	original := completionSpecs
 	completionSpecs = make(map[string]string)
