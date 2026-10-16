@@ -35,6 +35,24 @@ func init() {
 }
 
 func handleHistory(args []string, stdin io.Reader, stdout, stderr io.Writer) ExecutionResult {
+	if len(args) > 0 && args[0] == "-r" {
+		if len(args) != 2 {
+			fmt.Fprintln(stderr, "history: usage: history -r <path>")
+			return ExecutionResult{Status: 1}
+		}
+		contents, err := os.ReadFile(args[1])
+		if err != nil {
+			fmt.Fprintln(stderr, "history:", err)
+			return ExecutionResult{Status: 1}
+		}
+		for _, line := range strings.Split(string(contents), "\n") {
+			line = strings.TrimSuffix(line, "\r")
+			if strings.TrimSpace(line) != "" {
+				commandHistory = append(commandHistory, line)
+			}
+		}
+		return ExecutionResult{}
+	}
 	if len(args) > 1 {
 		fmt.Fprintln(stderr, "history: too many arguments")
 		return ExecutionResult{Status: 1}

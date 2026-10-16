@@ -51,6 +51,48 @@ func TestHistoryListsSubmittedLines(t *testing.T) {
 	}
 }
 
+func TestHistoryReadFile(t *testing.T) {
+	original := commandHistory
+	commandHistory = nil
+	t.Cleanup(func() { commandHistory = original })
+	path := filepath.Join(t.TempDir(), "history file")
+	contents := "echo hello\n\n  \necho world\r\n  echo preserved  "
+	if err := os.WriteFile(path, []byte(contents), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	readCommand := "history -r '" + path + "'"
+	for range 2 {
+		result, stdout, stderr := runTestLine(readCommand)
+		if result.Status != 0 || result.Exit || stdout != "" || stderr != "" {
+			t.Fatalf("read history = %+v, stdout %q, stderr %q", result, stdout, stderr)
+		}
+	}
+	result, stdout, stderr := runTestLine("history")
+	want := "    1  " + readCommand + "\n    2  echo hello\n    3  echo world\n    4    echo preserved  \n    5  " + readCommand + "\n    6  echo hello\n    7  echo world\n    8    echo preserved  \n    9  history\n"
+	if result.Status != 0 || stdout != want || stderr != "" {
+		t.Fatalf("history = %+v, stdout %q, stderr %q", result, stdout, stderr)
+	}
+	if data, err := os.ReadFile(path); err != nil || string(data) != contents {
+		t.Fatalf("history file changed: %q, error %v", data, err)
+	}
+}
+
+func TestHistoryReadErrors(t *testing.T) {
+	original := commandHistory
+	commandHistory = nil
+	t.Cleanup(func() { commandHistory = original })
+	missing := filepath.Join(t.TempDir(), "missing")
+	for _, line := range []string{"history -r", "history -r '" + missing + "'", "history -r a b"} {
+		result, stdout, stderr := runTestLine(line)
+		if result.Status == 0 || result.Exit || stdout != "" || stderr == "" {
+			t.Fatalf("%s = %+v, stdout %q, stderr %q", line, result, stdout, stderr)
+		}
+	}
+	if _, err := os.Stat(missing); !os.IsNotExist(err) {
+		t.Fatalf("missing file was created: %v", err)
+	}
+}
+
 func TestHistoryLimit(t *testing.T) {
 	original := commandHistory
 	t.Cleanup(func() { commandHistory = original })
