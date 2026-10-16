@@ -119,6 +119,10 @@ func handleComplete(args []string, stdin io.Reader, stdout, stderr io.Writer) Ex
 		for _, command := range args[2:] {
 			completionSpecs[command] = args[1]
 		}
+	case "-r":
+		for _, command := range args[1:] {
+			delete(completionSpecs, command)
+		}
 	case "-p":
 		for _, command := range args[1:] {
 			if script, exists := completionSpecs[command]; exists {
