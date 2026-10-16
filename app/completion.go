@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -42,7 +43,7 @@ func (c *BellCompleter) Do(line []rune, pos int) ([][]rune, int) {
 		command := prefix[:firstSpace]
 		if script, exists := completionSpecs[command]; exists {
 			current, previous := completionWords(prefix)
-			return c.completeRegistered(script, command, current, previous)
+			return c.completeRegistered(script, command, current, previous, string(line), len(prefix))
 		}
 		return c.completeFilename(currentWord(prefix))
 	}
@@ -82,8 +83,13 @@ func completionWords(line string) (current, previous string) {
 	return current, previous
 }
 
-func (c *BellCompleter) completeRegistered(script, command, prefix, previous string) ([][]rune, int) {
-	output, err := exec.Command(script, command, prefix, previous).Output()
+func (c *BellCompleter) completeRegistered(script, command, prefix, previous, fullLine string, point int) ([][]rune, int) {
+	cmd := exec.Command(script, command, prefix, previous)
+	cmd.Env = append(os.Environ(),
+		"COMP_LINE="+fullLine,
+		"COMP_POINT="+strconv.Itoa(point),
+	)
+	output, err := cmd.Output()
 	if err != nil {
 		return c.completeMatches(prefix, nil)
 	}
