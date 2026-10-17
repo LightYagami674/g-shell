@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-var parameterReference = regexp.MustCompile(`^\$[A-Za-z_][A-Za-z0-9_]*`)
+var parameterReference = regexp.MustCompile(`^\$(?:[A-Za-z_][A-Za-z0-9_]*|\{[A-Za-z_][A-Za-z0-9_]*\})`)
 
 func getModifiedInput(input string) ([]string, error) {
 	var words []string
@@ -57,7 +57,8 @@ func getModifiedInput(input string) ([]string, error) {
 
 		if c == '$' && quote != '\'' {
 			if reference := parameterReference.FindString(input[i:]); reference != "" {
-				word.WriteString(shellVariables[reference[1:]])
+				name := strings.Trim(reference[1:], "{}")
+				word.WriteString(shellVariables[name])
 				i += len(reference) - 1
 				continue
 			}
