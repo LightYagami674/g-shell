@@ -12,14 +12,14 @@ func getModifiedInput(input string) ([]string, error) {
 	var words []string
 	var word strings.Builder
 	var quote byte
-	wordStarted := false
+	keepEmptyWord := false
 
 	flushWord := func() {
-		if wordStarted {
+		if word.Len() > 0 || keepEmptyWord {
 			words = append(words, word.String())
-			word.Reset()
-			wordStarted = false
 		}
+		word.Reset()
+		keepEmptyWord = false
 	}
 
 	for i := 0; i < len(input); i++ {
@@ -28,7 +28,6 @@ func getModifiedInput(input string) ([]string, error) {
 			flushWord()
 			continue
 		}
-		wordStarted = true
 
 		if c == '\\' && quote != '\'' {
 			if i+1 == len(input) {
@@ -46,6 +45,7 @@ func getModifiedInput(input string) ([]string, error) {
 
 		if c == '\'' || c == '"' {
 			if quote == 0 {
+				keepEmptyWord = true
 				quote = c
 				continue
 			}
