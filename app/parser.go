@@ -2,113 +2,69 @@ package main
 
 import (
 	"errors"
+	"regexp"
 	"strings"
 )
 
+var parameterReference = regexp.MustCompile(`^\$[A-Za-z_][A-Za-z0-9_]*`)
+
 func getModifiedInput(input string) ([]string, error) {
-	res := make([]string, 0)
+	var words []string
+	var word strings.Builder
+	var quote byte
+	wordStarted := false
 
-	var curWord strings.Builder
-	quoteStart := false
-	doubleQuoteStart := false
-
-	addNextChar := false
-
-	for i, c := range input {
-		isLast := i == len(input)-1
-		isFirst := i == 0
-
-		if doubleQuoteStart && !addNextChar {
-			switch c {
-			case '"':
-				if !isLast && (input[i-1] == '"' || input[i+1] == '"') {
-					continue
-				}
-
-				doubleQuoteStart = false
-
-				if !isLast && input[i+1] != ' ' {
-					continue
-				}
-
-				if curWord.Len() > 0 {
-					res = append(res, curWord.String())
-					curWord.Reset()
-				}
-			case '\\':
-				if isLast {
-					return nil, errors.New("invalid input, open double quotes without end")
-				}
-
-				if input[i+1] == '"' || input[i+1] == '\\' {
-					addNextChar = true
-				} else {
-					curWord.WriteRune(c)
-				}
-			default:
-				curWord.WriteRune(c)
-			}
-		} else if quoteStart && !addNextChar {
-			switch c {
-			case ' ':
-				curWord.WriteRune(c)
-
-			case '\'':
-				if !isLast && (input[i+1] == '\'' || input[i-1] == '\'') {
-					continue
-				}
-				quoteStart = false
-				res = append(res, curWord.String())
-				curWord.Reset()
-
-			default:
-				curWord.WriteRune(c)
-			}
-		} else if addNextChar {
-			curWord.WriteRune(c)
-			addNextChar = false
-		} else {
-			switch c {
-			case ' ':
-				if curWord.Len() > 0 {
-					res = append(res, curWord.String())
-				}
-				curWord.Reset()
-
-			case '"':
-				if quoteStart {
-					curWord.WriteRune(c)
-					continue
-				}
-				doubleQuoteStart = true
-
-			case '\'':
-				if doubleQuoteStart {
-					curWord.WriteRune(c)
-					continue
-				}
-				if (!isLast && input[i+1] == '\'') ||
-					(!isFirst && input[i-1] == '\'') {
-					continue
-				}
-
-				quoteStart = true
-			case '\\':
-				if isLast {
-					continue
-				}
-				addNextChar = true
-
-			default:
-				curWord.WriteRune(c)
-			}
+	flushWord := func() {
+		if wordStarted {
+			words = append(words, word.String())
+			word.Reset()
+			wordStarted = false
 		}
 	}
 
-	if curWord.Len() > 0 {
-		res = append(res, curWord.String())
-		curWord.Reset()
+	for i := 0; i < len(input); i++ {
+		c := input[i]
+		if c == ' ' && quote == 0 {
+			flushWord()
+			continue
+		}
+		wordStarted = true
+
+		if c == '\\' && quote != '\'' {
+			if i+1 == len(input) {
+				if quote == '"' {
+					return nil, errors.New("invalid input, open double quotes without end")
+				}
+				continue
+			}
+			if quote == 0 || strings.ContainsRune("\"\\$", rune(input[i+1])) {
+				i++
+				word.WriteByte(input[i])
+				continue
+			}
+		}
+
+		if c == '\'' || c == '"' {
+			if quote == 0 {
+				quote = c
+				continue
+			}
+			if quote == c {
+				quote = 0
+				continue
+			}
+		}
+
+		if c == '$' && quote != '\'' {
+			if reference := parameterReference.FindString(input[i:]); reference != "" {
+				word.WriteString(shellVariables[reference[1:]])
+				i += len(reference) - 1
+				continue
+			}
+		}
+		word.WriteByte(c)
 	}
 
-	return res, nil
+	flushWord()
+	return words, nil
 }
