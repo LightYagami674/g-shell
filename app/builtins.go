@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"regexp"
 	"strconv"
 	"strings"
 )
@@ -13,6 +14,7 @@ type BuiltinFn func(args []string, stdin io.Reader, stdout, stderr io.Writer) Ex
 
 var completionSpecs = make(map[string]string)
 var shellVariables = make(map[string]string)
+var validIdentifier = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
 // Initialized separately so handlers can consult the same registry without an
 // initialization cycle (type reports whether another command is a builtin).
@@ -48,11 +50,21 @@ func handleDeclare(args []string, stdin io.Reader, stdout, stderr io.Writer) Exe
 		return result
 	}
 	for _, arg := range args {
-		if name, value, found := strings.Cut(arg, "="); found {
+		name, value, found := strings.Cut(arg, "=")
+		if !isValidIdentifier(name) {
+			fmt.Fprintf(stderr, "declare: `%s': not a valid identifier\n", arg)
+			result.Status = 1
+			continue
+		}
+		if found {
 			shellVariables[name] = value
 		}
 	}
 	return result
+}
+
+func isValidIdentifier(name string) bool {
+	return validIdentifier.MatchString(name)
 }
 
 func handleEcho(args []string, stdin io.Reader, stdout, stderr io.Writer) ExecutionResult {

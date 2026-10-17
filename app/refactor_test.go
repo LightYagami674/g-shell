@@ -57,6 +57,15 @@ func TestDeclareVariables(t *testing.T) {
 		{line: "declare -p empty equals", stdout: "declare -- empty=\"\"\ndeclare -- equals=\"a=b\"\n"},
 		{line: "declare DECLARE_LOCAL_TEST=local"},
 		{line: "declare -p DECLARE_LOCAL_TEST", stdout: "declare -- DECLARE_LOCAL_TEST=\"local\"\n"},
+		{line: "declare 23=x", stderr: "declare: `23=x': not a valid identifier\n", status: 1},
+		{line: "declare -p 23", stderr: "declare: 23: not found\n", status: 1},
+		{line: "declare _FOO=bar a1_b2=value _=underscore"},
+		{line: "declare -p _FOO a1_b2 _", stdout: "declare -- _FOO=\"bar\"\ndeclare -- a1_b2=\"value\"\ndeclare -- _=\"underscore\"\n"},
+		{line: "declare =empty", stderr: "declare: `=empty': not a valid identifier\n", status: 1},
+		{line: "declare bad-name=x", stderr: "declare: `bad-name=x': not a valid identifier\n", status: 1},
+		{line: "declare 'bad name=x'", stderr: "declare: `bad name=x': not a valid identifier\n", status: 1},
+		{line: "declare 67=x good=value", stderr: "declare: `67=x': not a valid identifier\n", status: 1},
+		{line: "declare -p good bad-name", stdout: "declare -- good=\"value\"\n", stderr: "declare: bad-name: not found\n", status: 1},
 	} {
 		result, stdout, stderr := runTestLine(test.line)
 		if result.Status != test.status || result.Exit || stdout != test.stdout || stderr != test.stderr {
