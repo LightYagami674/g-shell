@@ -27,6 +27,7 @@ func init() {
 		"jobs":     handleJobs,
 		"complete": handleComplete,
 		"history":  handleHistory,
+		"declare":  nil,
 	}
 }
 
