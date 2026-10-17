@@ -44,6 +44,42 @@ func TestHistoryStartup(t *testing.T) {
 	}
 }
 
+func TestHistorySavedOnExit(t *testing.T) {
+	for _, test := range []struct {
+		name, initial, input, want string
+		status                     int
+	}{
+		{"new file", "", "echo hello\necho world\nexit\n", "echo hello\necho world\nexit\n", 0},
+		{"existing file", "echo previous\n\n", "echo hello\nexit\n", "echo previous\necho hello\nexit\n", 0},
+		{"EOF", "", "echo hello\n", "echo hello\n", 0},
+		{"exit status", "", "exit 7\n", "exit 7\n", 7},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "history file")
+			if test.initial != "" {
+				if err := os.WriteFile(path, []byte(test.initial), 0o644); err != nil {
+					t.Fatal(err)
+				}
+			}
+			cmd := exec.Command(os.Args[0], "-test.run=^TestHistoryStartup$")
+			cmd.Env = append(os.Environ(), "SHELL_HISTORY_STARTUP_TEST=1", "HISTFILE="+path)
+			cmd.Stdin = strings.NewReader(test.input)
+			var stderr bytes.Buffer
+			cmd.Stderr = &stderr
+			err := cmd.Run()
+			if cmd.ProcessState == nil {
+				t.Fatalf("shell did not start: %v", err)
+			}
+			if cmd.ProcessState.ExitCode() != test.status || stderr.Len() != 0 {
+				t.Fatalf("exit status %d, want %d, stderr %q", cmd.ProcessState.ExitCode(), test.status, stderr.String())
+			}
+			if data, err := os.ReadFile(path); err != nil || string(data) != test.want {
+				t.Fatalf("history file = %q, want %q, error %v", data, test.want, err)
+			}
+		})
+	}
+}
+
 func resetAppendHistory(t *testing.T) {
 	t.Helper()
 	original, originalIndex := commandHistory, historyAppendIndex

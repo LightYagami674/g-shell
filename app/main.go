@@ -19,6 +19,11 @@ func run() int {
 		}
 		// Loaded entries are already on disk; -a should only append new ones.
 		historyAppendIndex = len(commandHistory)
+		defer func() {
+			if err := writeHistoryFile(path); err != nil {
+				fmt.Fprintln(os.Stderr, "history:", err)
+			}
+		}()
 	}
 	bellCompleter := prePopulatePrefixCompleter()
 	config := readline.Config{
