@@ -13,6 +13,13 @@ func main() {
 }
 
 func run() int {
+	if path := os.Getenv("HISTFILE"); path != "" {
+		if err := readHistoryFile(path); err != nil && !os.IsNotExist(err) {
+			fmt.Fprintln(os.Stderr, "history:", err)
+		}
+		// Loaded entries are already on disk; -a should only append new ones.
+		historyAppendIndex = len(commandHistory)
+	}
 	bellCompleter := prePopulatePrefixCompleter()
 	config := readline.Config{
 		Prompt:       "$ ",

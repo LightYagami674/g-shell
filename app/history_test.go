@@ -1,10 +1,48 @@
 package main
 
 import (
+	"bytes"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
+
+func TestHistoryStartup(t *testing.T) {
+	if os.Getenv("SHELL_HISTORY_STARTUP_TEST") == "1" {
+		os.Exit(run())
+	}
+	for _, mode := range []string{"existing", "missing", "unset"} {
+		t.Run(mode, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "history file")
+			initial := "echo hello\necho world\n\n"
+			if mode == "existing" {
+				if err := os.WriteFile(path, []byte(initial), 0o644); err != nil {
+					t.Fatal(err)
+				}
+			}
+			cmd := exec.Command(os.Args[0], "-test.run=^TestHistoryStartup$")
+			cmd.Env = append(os.Environ(), "SHELL_HISTORY_STARTUP_TEST=1", "HISTFILE="+path)
+			if mode == "unset" {
+				cmd.Env = append(cmd.Env, "HISTFILE=")
+			}
+			cmd.Stdin = strings.NewReader("history\nexit\n")
+			var stdout, stderr bytes.Buffer
+			cmd.Stdout, cmd.Stderr = &stdout, &stderr
+			if err := cmd.Run(); err != nil {
+				t.Fatalf("shell failed: %v, stderr %q", err, stderr.String())
+			}
+			want := "    1  history\n"
+			if mode == "existing" {
+				want = "    1  echo hello\n    2  echo world\n    3  history\n"
+			}
+			if stdout.String() != want || stderr.Len() != 0 {
+				t.Fatalf("stdout %q, want %q, stderr %q", stdout.String(), want, stderr.String())
+			}
+		})
+	}
+}
 
 func resetAppendHistory(t *testing.T) {
 	t.Helper()
