@@ -29,11 +29,42 @@ func TestBuiltinDispatchAndRecognition(t *testing.T) {
 	if result.Status != 0 || stdout != "hello world again\n" || stderr != "" {
 		t.Fatalf("echo = %+v, stdout %q, stderr %q", result, stdout, stderr)
 	}
-	for _, name := range []string{"echo", "exit", "type", "pwd", "cd", "jobs", "complete", "history"} {
+	for _, name := range []string{"echo", "exit", "type", "pwd", "cd", "jobs", "complete", "history", "declare"} {
 		result, stdout, stderr := runTestLine("type " + name)
 		if result.Status != 0 || stdout != name+" is a shell builtin\n" || stderr != "" {
 			t.Errorf("type %s = %+v, stdout %q, stderr %q", name, result, stdout, stderr)
 		}
+	}
+}
+
+func TestDeclareVariables(t *testing.T) {
+	original := shellVariables
+	shellVariables = make(map[string]string)
+	t.Cleanup(func() { shellVariables = original })
+	t.Setenv("DECLARE_LOCAL_TEST", "environment value")
+	for _, test := range []struct {
+		line   string
+		stdout string
+		stderr string
+		status int
+	}{
+		{line: "declare foo=bar"},
+		{line: "declare -p foo", stdout: "declare -- foo=\"bar\"\n"},
+		{line: "declare -p missing_variable", stderr: "declare: missing_variable: not found\n", status: 1},
+		{line: "declare foo=bar2"},
+		{line: "declare -p foo", stdout: "declare -- foo=\"bar2\"\n"},
+		{line: "declare empty= equals=a=b"},
+		{line: "declare -p empty equals", stdout: "declare -- empty=\"\"\ndeclare -- equals=\"a=b\"\n"},
+		{line: "declare DECLARE_LOCAL_TEST=local"},
+		{line: "declare -p DECLARE_LOCAL_TEST", stdout: "declare -- DECLARE_LOCAL_TEST=\"local\"\n"},
+	} {
+		result, stdout, stderr := runTestLine(test.line)
+		if result.Status != test.status || result.Exit || stdout != test.stdout || stderr != test.stderr {
+			t.Fatalf("%s = %+v, stdout %q, stderr %q", test.line, result, stdout, stderr)
+		}
+	}
+	if got := os.Getenv("DECLARE_LOCAL_TEST"); got != "environment value" {
+		t.Fatalf("declare changed the environment: %q", got)
 	}
 }
 

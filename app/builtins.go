@@ -12,6 +12,7 @@ import (
 type BuiltinFn func(args []string, stdin io.Reader, stdout, stderr io.Writer) ExecutionResult
 
 var completionSpecs = make(map[string]string)
+var shellVariables = make(map[string]string)
 
 // Initialized separately so handlers can consult the same registry without an
 // initialization cycle (type reports whether another command is a builtin).
@@ -27,8 +28,31 @@ func init() {
 		"jobs":     handleJobs,
 		"complete": handleComplete,
 		"history":  handleHistory,
-		"declare":  nil,
+		"declare":  handleDeclare,
 	}
+}
+
+func handleDeclare(args []string, stdin io.Reader, stdout, stderr io.Writer) ExecutionResult {
+	result := ExecutionResult{}
+	if len(args) > 0 && args[0] == "-p" {
+		for _, name := range args[1:] {
+			value, exists := shellVariables[name]
+			if !exists {
+				fmt.Fprintf(stderr, "declare: %s: not found\n", name)
+				result.Status = 1
+				continue
+			}
+			escaped := strings.NewReplacer("\\", "\\\\", "\"", "\\\"", "$", "\\$", "`", "\\`").Replace(value)
+			fmt.Fprintf(stdout, "declare -- %s=\"%s\"\n", name, escaped)
+		}
+		return result
+	}
+	for _, arg := range args {
+		if name, value, found := strings.Cut(arg, "="); found {
+			shellVariables[name] = value
+		}
+	}
+	return result
 }
 
 func handleEcho(args []string, stdin io.Reader, stdout, stderr io.Writer) ExecutionResult {
